@@ -55,7 +55,7 @@ class _ProgressReader:
         self._report()
         return data
 
-    def readinto(self, buffer: bytearray) -> int | None:
+    def readinto(self, buffer) -> int | None:
         count = self._handle.readinto(buffer)
         self._report()
         return count
