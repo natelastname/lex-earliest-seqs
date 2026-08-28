@@ -67,3 +67,30 @@ def test_legacy_cache_rejects_wrong_sequence_identity(tmp_path):
             tmp_path / "A336957.pkl",
             progress=False,
         )
+
+
+def test_migration_refuses_to_overwrite_native_cache_without_force(tmp_path):
+    source = tmp_path / "terms-v1.pkl"
+    destination = tmp_path / "A336957.pkl"
+    _write_legacy_cache(source, [1, 2, 6, 15, 35, 14, 12, 33, 55, 10, 18, 21])
+    destination.write_bytes(b"existing")
+
+    with pytest.raises(FileExistsError, match="--force"):
+        migrate_legacy_ew_cache(
+            source,
+            destination,
+            progress=False,
+        )
+
+
+def test_migration_refuses_same_source_and_destination(tmp_path):
+    source = tmp_path / "terms-v1.pkl"
+    _write_legacy_cache(source, [1, 2, 6, 15, 35, 14, 12, 33, 55, 10, 18, 21])
+
+    with pytest.raises(ValueError, match="must be different"):
+        migrate_legacy_ew_cache(
+            source,
+            source,
+            force=True,
+            progress=False,
+        )
