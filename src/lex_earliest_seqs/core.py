@@ -145,9 +145,9 @@ class SequenceRun(Generic[ObjectT]):
         """Ensure ``count`` terms are available, optionally reporting progress.
 
         Progress callbacks receive ``(current_count, target_count)``. When progress
-        is requested, the generator is extended in bounded batches so opaque,
-        stateful generators still expose useful progress without needing their own
-        callback API.
+        is requested, the generator is extended in batches so opaque, stateful
+        generators still expose useful progress without needing their own callback
+        API. By default there are at most about one thousand extension calls.
         """
 
         if count < 0:
@@ -162,10 +162,7 @@ class SequenceRun(Generic[ObjectT]):
             current = before
             progress(min(current, count), count)
             remaining = count - current
-            chunk_size = progress_chunk_size or max(
-                1,
-                min(5_000, (remaining + 999) // 1_000),
-            )
+            chunk_size = progress_chunk_size or max(1, (remaining + 999) // 1_000)
 
             while current < count:
                 target = min(count, current + chunk_size)
