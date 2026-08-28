@@ -1,4 +1,4 @@
-"""Forced-squarefree Enots--Wolley sequence (temporary OEIS ID A000000)."""
+"""Forced-squarefree Enots--Wolley sequence (OEIS A399457)."""
 
 from __future__ import annotations
 
@@ -58,8 +58,8 @@ class ForcedSquarefreeEnotsWolleyGenerator:
 
 
 FORCED_SQUAREFREE_ENOTS_WOLLEY = SequenceDefinition[int](
-    id="A000000",
-    oeis="A000000",
+    id="A399457",
+    oeis="A399457",
     name="Forced-squarefree Enots--Wolley",
     aliases=(
         "forced-squarefree-ew",
@@ -74,7 +74,6 @@ FORCED_SQUAREFREE_ENOTS_WOLLEY = SequenceDefinition[int](
     projections={"prime-exponents": prime_exponent_projection()},
     description=(
         "Lexicographically earliest sequence obeying the Enots--Wolley rule while "
-        "permanently excluding nonsquarefree positive integers. A000000 is a "
-        "temporary placeholder pending assignment of an OEIS number."
+        "permanently excluding nonsquarefree positive integers."
     ),
 )
