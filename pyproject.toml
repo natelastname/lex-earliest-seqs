@@ -5,19 +5,16 @@ build-backend = "uv_build"
 [project]
 name = "lex-earliest-seqs"
 version = "0.1.0"
-description = "A python module"
+description = "Research tools for stateful lexicographically earliest sequences and incidence chronology tables"
 readme = "README.md"
 requires-python = ">=3.12,<3.14.1"
 authors = [
   { name = "Nathan Nichols", email = "communications@resultsmotivated.com" },
 ]
-dependencies = [
-  "loguru>=0.7.3,<0.8",
-  "argh>=0.31.3,<0.32",
-]
+dependencies = []
 
 [project.scripts]
-lex-earliest-seqs = "lex-earliest-seqs.cli:cli"
+lex-earliest-seqs = "lex_earliest_seqs.cli:main"
 
 [dependency-groups]
 dev = [
@@ -32,6 +29,7 @@ profile = "black"
 src_paths = ["src", "tests"]
 
 [tool.pytest.ini_options]
+pythonpath = ["src"]
 filterwarnings = [
     "error",
     "ignore::DeprecationWarning",
@@ -48,8 +46,6 @@ reportUnknownVariableType = "none"
 reportUntypedFunctionDecorator = "none"
 
 [tool.ruff]
-lint.select = [
-  "F401",
-]
+lint.select = ["F401"]
 fix = true
 src = ["src", "tests"]
