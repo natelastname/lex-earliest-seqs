@@ -230,7 +230,7 @@ def migrate_legacy_ew_cache(
             raise LegacyEWCacheError("native cache term count changed during migration")
         if restored.terms[-1] != last_term:
             raise LegacyEWCacheError("native cache final term changed during migration")
-        if restored.terms[: len(EXPECTED_PREFIX)] != EXPECTED_PREFIX:
+        if restored.terms[: len(EXPECTED_PREFIX)] != EXPECTED_PREFIX[:term_count]:
             raise LegacyEWCacheError("native cache prefix changed during migration")
         if len(restored.used) != term_count:
             raise LegacyEWCacheError("native cache used-set size is inconsistent")
