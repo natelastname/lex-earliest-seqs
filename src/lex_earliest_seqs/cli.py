@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import sys
+import time
 from pathlib import Path
 from typing import Annotated, Literal
 
@@ -31,20 +33,80 @@ app = App(
 )
 
 
+class _ProgressPrinter:
+    """Throttle progress callbacks into readable stderr status lines."""
+
+    def __init__(self, label: str, unit: Literal["terms", "bytes"]) -> None:
+        self.label = label
+        self.unit = unit
+        self._last_time = 0.0
+        self._last_value: tuple[int, int] | None = None
+
+    @staticmethod
+    def _format_bytes(value: int) -> str:
+        amount = float(value)
+        for suffix in ("B", "KiB", "MiB", "GiB", "TiB", "PiB"):
+            if amount < 1024 or suffix == "PiB":
+                if suffix == "B":
+                    return f"{int(amount):,} {suffix}"
+                return f"{amount:.1f} {suffix}"
+            amount /= 1024
+        raise AssertionError("unreachable")
+
+    def __call__(self, current: int, total: int) -> None:
+        value = (current, total)
+        if value == self._last_value:
+            return
+
+        now = time.monotonic()
+        done = current >= total
+        if self._last_value is not None and not done and now - self._last_time < 0.5:
+            return
+
+        self._last_time = now
+        self._last_value = value
+        percent = 100.0 if total == 0 else min(100.0, 100.0 * current / total)
+        if self.unit == "bytes":
+            detail = (
+                f"{self._format_bytes(current)}/{self._format_bytes(total)}"
+            )
+        else:
+            detail = f"{current:,}/{total:,} terms"
+        print(
+            f"{self.label}: {detail} ({percent:5.1f}%)",
+            file=sys.stderr,
+            flush=True,
+        )
+
+
 def _open(
     sequence: str,
     *,
     cache_dir: Path | None,
     refresh: bool,
     cache: bool,
+    progress: bool,
 ):
     definition = registry.resolve(sequence)
+    load_progress = (
+        _ProgressPrinter(f"load {definition.id}", "bytes") if progress else None
+    )
     return open_run(
         definition,
         cache_dir=cache_dir,
         refresh=refresh,
         use_cache=cache,
+        load_progress=load_progress,
     )
+
+
+def _ensure(run, count: int, *, progress: bool) -> None:
+    callback = (
+        _ProgressPrinter(f"compute {run.definition.id}", "terms")
+        if progress
+        else None
+    )
+    run.ensure(count, progress=callback)
 
 
 def _projection(definition, name: str | None):
@@ -106,6 +168,7 @@ def compute(
     cache_dir: Path | None = None,
     refresh: bool = False,
     cache: bool = True,
+    progress: bool = True,
 ) -> None:
     """Compute and optionally cache a sequence prefix.
 
@@ -121,6 +184,9 @@ def compute(
         Ignore an existing pickle and regenerate from a fresh generator.
     cache
         Load and save the generator pickle. Use ``--no-cache`` to disable it.
+    progress
+        Print cache-loading and computation progress. Use ``--no-progress`` to
+        suppress it.
     """
 
     run = _open(
@@ -128,8 +194,9 @@ def compute(
         cache_dir=cache_dir,
         refresh=refresh,
         cache=cache,
+        progress=progress,
     )
-    run.ensure(count)
+    _ensure(run, count, progress=progress)
     print(f"{run.definition.id}: cached/computed {count} terms")
     if run.cache_path is not None:
         print(run.cache_path)
@@ -144,6 +211,7 @@ def terms(
     cache_dir: Path | None = None,
     refresh: bool = False,
     cache: bool = True,
+    progress: bool = True,
 ) -> None:
     """Print a sequence slice.
 
@@ -161,6 +229,9 @@ def terms(
         Ignore an existing pickle and regenerate from a fresh generator.
     cache
         Load and save the generator pickle. Use ``--no-cache`` to disable it.
+    progress
+        Print cache-loading and computation progress. Use ``--no-progress`` to
+        suppress it.
     """
 
     run = _open(
@@ -168,8 +239,10 @@ def terms(
         cache_dir=cache_dir,
         refresh=refresh,
         cache=cache,
+        progress=progress,
     )
     stop = start_position + count
+    _ensure(run, stop, progress=progress)
     for record in run.records(start_position, stop):
         print(f"{record.subscript}\t{record.value}")
 
@@ -187,6 +260,7 @@ def table(
     cache_dir: Path | None = None,
     refresh: bool = False,
     cache: bool = True,
+    progress: bool = True,
 ) -> None:
     """Print an incidence chronology table.
 
@@ -212,6 +286,9 @@ def table(
         Ignore an existing pickle and regenerate from a fresh generator.
     cache
         Load and save the generator pickle. Use ``--no-cache`` to disable it.
+    progress
+        Print cache-loading and computation progress. Use ``--no-progress`` to
+        suppress it.
     """
 
     run = _open(
@@ -219,8 +296,10 @@ def table(
         cache_dir=cache_dir,
         refresh=refresh,
         cache=cache,
+        progress=progress,
     )
     stop = start_position + count
+    _ensure(run, stop, progress=progress)
     records = run.records(start_position, stop)
     selected_projection = _projection(run.definition, projection)
     incidence_table = build_incidence_table(
