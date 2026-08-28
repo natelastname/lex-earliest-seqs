@@ -69,26 +69,19 @@ def _radical_table(limit: int) -> list[int]:
     return radicals
 
 
-def _initial_used() -> bytearray:
-    used = bytearray(_INITIAL_LIMIT + 1)
-    used[1] = used[2] = 1
-    return used
-
-
 @dataclass
 class EnotsWolleyGenerator:
     """Fast least-unused EW scan with pickleable continuation state.
 
-    Candidate testing uses a precomputed radical table. ``used`` is a bytearray
-    rather than a Python set, and both it and ``smallest_unused`` survive cache
-    round trips. The radical table is a large derived acceleration structure, so
-    it is deliberately omitted from the pickle and rebuilt lazily only if a
-    loaded generator is extended again. Merely retrieving cached terms does not
-    rebuild it.
+    Candidate support introduction is tested with a precomputed radical table.
+    The exact generated terms, the set of used values, and the least-unused scan
+    pointer survive cache round trips. The radical table is a large derived
+    acceleration structure, so it is deliberately omitted from the pickle and
+    rebuilt lazily only if a loaded generator is extended again.
     """
 
     terms: list[int] = field(default_factory=lambda: [1, 2])
-    used: bytearray = field(default_factory=_initial_used)
+    used: set[int] = field(default_factory=lambda: {1, 2})
     smallest_unused: int = 3
     limit: int = _INITIAL_LIMIT
     radicals: list[int] | None = field(default=None, repr=False)
@@ -107,23 +100,8 @@ class EnotsWolleyGenerator:
     def _resize(self, new_limit: int) -> None:
         if new_limit <= self.limit:
             return
-        old_limit = self.limit
         self.limit = new_limit
-        self.used.extend(b"\0" * (new_limit - old_limit))
         self.radicals = _radical_table(new_limit)
-
-    def _prepare_for_target(self, count: int) -> None:
-        # The original fast implementation starts with roughly 8 candidate
-        # values per requested term. Grow geometrically so progress batching
-        # does not rebuild the radical table on every extend_to() call.
-        desired = max(_INITIAL_LIMIT, 8 * count)
-        if desired > self.limit:
-            new_limit = self.limit
-            while new_limit < desired:
-                new_limit *= 2
-            self._resize(new_limit)
-        else:
-            self._ensure_radicals()
 
     def extend_to(self, count: int) -> None:
         if count < 0:
@@ -132,10 +110,8 @@ class EnotsWolleyGenerator:
             return
         if len(self.terms) < 2:
             raise RuntimeError("EnotsWolleyGenerator state is missing initial terms")
-        if len(self.used) != self.limit + 1:
-            raise RuntimeError("EnotsWolleyGenerator used-table size is inconsistent")
 
-        self._prepare_for_target(count)
+        self._ensure_radicals()
         assert self.radicals is not None
 
         while len(self.terms) < count:
@@ -153,7 +129,7 @@ class EnotsWolleyGenerator:
                 # rad(candidate) divides rad(previous) exactly when candidate
                 # introduces no prime absent from the predecessor.
                 if (
-                    not self.used[candidate]
+                    candidate not in self.used
                     and gcd(candidate, previous) != 1
                     and gcd(candidate, two_back) == 1
                     and previous_radical % self.radicals[candidate] != 0
@@ -162,8 +138,8 @@ class EnotsWolleyGenerator:
                 candidate += 1
 
             self.terms.append(candidate)
-            self.used[candidate] = 1
-            while self.smallest_unused <= self.limit and self.used[self.smallest_unused]:
+            self.used.add(candidate)
+            while self.smallest_unused in self.used:
                 self.smallest_unused += 1
 
 
@@ -173,7 +149,7 @@ ENOTS_WOLLEY = SequenceDefinition[int](
     name="Enots--Wolley",
     aliases=("ew", "enots-wolley"),
     generator_factory=EnotsWolleyGenerator,
-    generator_version=2,
+    generator_version=3,
     definition_version=1,
     offset=1,
     object_space=PositiveIntegers(),
