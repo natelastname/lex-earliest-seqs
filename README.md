@@ -102,6 +102,10 @@ lex-earliest-seqs table A338833 30 --projection binary-digits
 lex-earliest-seqs table ew 30 --format markdown
 ```
 
+Cache retrieval and sequence computation print progress to stderr by default.
+This keeps term/table output on stdout clean for piping. Pass `--no-progress`
+to `compute`, `terms`, or `table` to suppress progress reporting.
+
 By default pickles are stored under
 `$XDG_CACHE_HOME/lex-earliest-seqs` or `~/.cache/lex-earliest-seqs`.
 Writes use a temporary file followed by an atomic replace.
