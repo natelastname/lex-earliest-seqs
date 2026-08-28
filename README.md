@@ -119,7 +119,7 @@ Writes use a temporary file followed by an atomic replace.
 
 The temporary migration script converts the historical `enots-wolley-2`
 A336957 term-list pickle into the native stateful-generator cache **without
-recomputing any sequence terms**:
+recomputing or replaying any sequence terms**:
 
 ```console
 uv run python scripts/migrate_legacy_ew_cache.py
