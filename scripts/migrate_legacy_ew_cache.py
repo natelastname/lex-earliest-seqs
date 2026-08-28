@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-"""One-off migration of the historical enots-wolley-2 A336957 cache."""
+"""One-off migration of the historical enots-wolley-2 A336957 cache.
+
+Run from the repository root with:
+
+    uv run python scripts/migrate_legacy_ew_cache.py
+
+Delete this script and ``lex_earliest_seqs._legacy_ew_migration`` after the
+large legacy cache has been converted and verified.
+"""
 
 from __future__ import annotations
 
