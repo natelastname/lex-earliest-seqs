@@ -57,11 +57,12 @@ print(render_text(table))
 
 The initial zoo contains Enots--Wolley (OEIS A336957), its binary-support
 analogue (OEIS A338833), and forced-squarefree Enots--Wolley (OEIS A399457).
-The A336957 generator uses the radical-table/bytearray acceleration from the
-research implementation while retaining pickleable continuation state. Its
-large radical table is derived and omitted from the pickle, then rebuilt lazily
-only when a loaded cache must be extended. The other initial generators remain
-transparent reference implementations.
+The A336957 generator uses radical-table candidate acceleration while retaining
+its generated terms, a plain `set[int]` of used values, and its least-unused
+scan pointer as pickleable continuation state. Its large radical table is
+derived and omitted from the pickle, then rebuilt lazily only when a loaded
+cache must be extended. The other initial generators remain transparent
+reference implementations.
 
 ## Defining a sequence
 
