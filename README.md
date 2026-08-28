@@ -115,6 +115,25 @@ By default pickles are stored under
 `$XDG_CACHE_HOME/lex-earliest-seqs` or `~/.cache/lex-earliest-seqs`.
 Writes use a temporary file followed by an atomic replace.
 
+## One-off migration of the old EW cache
+
+The temporary migration script converts the historical `enots-wolley-2`
+A336957 term-list pickle into the native stateful-generator cache **without
+recomputing any sequence terms**:
+
+```console
+uv run python scripts/migrate_legacy_ew_cache.py
+```
+
+By default it reads `~/.cache/enots-wolley-2/terms-v1.pkl` and writes
+`~/.cache/lex-earliest-seqs/A336957.pkl`. It validates the old cache identity,
+reconstructs `used = set(terms)` and the least-unused scan pointer, writes the
+new pickle, then loads it back for verification. If a native A336957 cache
+already exists, pass `--force` to replace it.
+
+This migration code is intentionally temporary and can be deleted after the
+large research cache has been converted successfully.
+
 ## Development
 
 ```console
