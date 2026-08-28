@@ -36,3 +36,35 @@ def test_binary_enots_wolley_reference_prefix():
         24,
     ]
     assert "binary-digits" in definition.projections
+
+
+def test_forced_squarefree_enots_wolley_reference_prefix():
+    definition = registry.resolve("A000000")
+    assert definition.oeis == "A000000"
+    assert registry.resolve("forced-squarefree-ew") is definition
+
+    run = open_run(definition, use_cache=False)
+    run.ensure(20)
+    assert list(run.terms) == [
+        1,
+        2,
+        6,
+        15,
+        35,
+        14,
+        22,
+        33,
+        21,
+        70,
+        26,
+        39,
+        51,
+        34,
+        10,
+        55,
+        77,
+        42,
+        30,
+        65,
+    ]
+    assert "prime-exponents" in definition.projections
