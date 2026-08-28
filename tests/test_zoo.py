@@ -36,6 +36,7 @@ def test_fast_enots_wolley_matches_direct_rule():
     generator = EnotsWolleyGenerator()
     generator.extend_to(1_000)
     assert generator.terms == _reference_enots_wolley(1_000)
+    assert generator.used == set(generator.terms)
 
 
 def test_fast_enots_wolley_pickle_resumes_without_persisting_radicals():
@@ -47,6 +48,7 @@ def test_fast_enots_wolley_pickle_resumes_without_persisting_radicals():
     assert restored.radicals is None
     assert restored.terms == generator.terms
     assert restored.used == generator.used
+    assert isinstance(restored.used, set)
     assert restored.smallest_unused == generator.smallest_unused
 
     restored.extend_to(1_000)
@@ -55,7 +57,7 @@ def test_fast_enots_wolley_pickle_resumes_without_persisting_radicals():
 
 def test_enots_wolley_prime_projection_is_registered():
     definition = registry.resolve("A336957")
-    assert definition.generator_version == 2
+    assert definition.generator_version == 3
     assert "prime-exponents" in definition.projections
 
 
