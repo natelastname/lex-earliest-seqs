@@ -8,9 +8,9 @@ import re
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Generic, TypeVar
+from typing import BinaryIO, Generic, TypeVar
 
-from .core import SequenceDefinition, SequenceGenerator, SequenceRun
+from .core import ProgressCallback, SequenceDefinition, SequenceGenerator, SequenceRun
 
 ObjectT = TypeVar("ObjectT")
 CACHE_FORMAT_VERSION = 1
@@ -27,6 +27,38 @@ class CachedGenerator(Generic[ObjectT]):
     definition_version: int
     generator_version: int
     generator: SequenceGenerator[ObjectT]
+
+
+class _ProgressReader:
+    """Binary-file proxy that reports bytes consumed by ``pickle.load``."""
+
+    def __init__(
+        self,
+        handle: BinaryIO,
+        total_bytes: int,
+        progress: ProgressCallback,
+    ) -> None:
+        self._handle = handle
+        self._total_bytes = total_bytes
+        self._progress = progress
+
+    def _report(self) -> None:
+        self._progress(min(self._handle.tell(), self._total_bytes), self._total_bytes)
+
+    def read(self, size: int = -1) -> bytes:
+        data = self._handle.read(size)
+        self._report()
+        return data
+
+    def readline(self, size: int = -1) -> bytes:
+        data = self._handle.readline(size)
+        self._report()
+        return data
+
+    def readinto(self, buffer) -> int | None:
+        count = self._handle.readinto(buffer)
+        self._report()
+        return count
 
 
 def default_cache_dir() -> Path:
@@ -82,10 +114,18 @@ def _validate_cached(
 def load_generator(
     definition: SequenceDefinition[ObjectT],
     path: str | os.PathLike[str],
+    *,
+    progress: ProgressCallback | None = None,
 ) -> SequenceGenerator[ObjectT]:
     cache_path = Path(path)
+    total_bytes = cache_path.stat().st_size
     with cache_path.open("rb") as handle:
-        cached = pickle.load(handle)
+        if progress is None:
+            cached = pickle.load(handle)
+        else:
+            progress(0, total_bytes)
+            cached = pickle.load(_ProgressReader(handle, total_bytes, progress))
+            progress(total_bytes, total_bytes)
     return _validate_cached(definition, cached).generator
 
 
@@ -129,6 +169,7 @@ def open_run(
     cache_path: str | os.PathLike[str] | None = None,
     refresh: bool = False,
     use_cache: bool = True,
+    load_progress: ProgressCallback | None = None,
 ) -> SequenceRun[ObjectT]:
     if cache_dir is not None and cache_path is not None:
         raise ValueError("provide cache_dir or cache_path, not both")
@@ -144,7 +185,7 @@ def open_run(
         path = None
 
     if path is not None and path.exists() and not refresh:
-        generator = load_generator(definition, path)
+        generator = load_generator(definition, path, progress=load_progress)
     else:
         generator = definition.generator_factory()
         if not isinstance(generator, SequenceGenerator):

@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
-import argparse
+import sys
+import time
 from pathlib import Path
+from typing import Annotated, Literal
+
+from cyclopts import App, Parameter, validators
 
 from . import registry
 from .cache import open_run
@@ -16,31 +20,93 @@ from .incidence import (
     render_text,
 )
 
+NonNegativeInt = Annotated[
+    int,
+    Parameter(validator=validators.Number(gte=0)),
+]
+ColumnChoice = Literal["used", "through-largest"]
+OutputFormat = Literal["text", "markdown", "json", "csv", "tsv"]
 
-def _add_cache_options(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--cache-dir", type=Path, help="override the pickle cache directory"
-    )
-    parser.add_argument(
-        "--refresh",
-        action="store_true",
-        help="ignore an existing pickle and regenerate",
-    )
-    parser.add_argument(
-        "--no-cache",
-        action="store_true",
-        help="compute without loading or saving a pickle",
-    )
+app = App(
+    name="lex-earliest-seqs",
+    help="Research tools for lexicographically earliest sequences.",
+)
 
 
-def _open(args: argparse.Namespace):
-    definition = registry.resolve(args.sequence)
+class _ProgressPrinter:
+    """Throttle progress callbacks into readable stderr status lines."""
+
+    def __init__(self, label: str, unit: Literal["terms", "bytes"]) -> None:
+        self.label = label
+        self.unit = unit
+        self._last_time = 0.0
+        self._last_value: tuple[int, int] | None = None
+
+    @staticmethod
+    def _format_bytes(value: int) -> str:
+        amount = float(value)
+        for suffix in ("B", "KiB", "MiB", "GiB", "TiB", "PiB"):
+            if amount < 1024 or suffix == "PiB":
+                if suffix == "B":
+                    return f"{int(amount):,} {suffix}"
+                return f"{amount:.1f} {suffix}"
+            amount /= 1024
+        raise AssertionError("unreachable")
+
+    def __call__(self, current: int, total: int) -> None:
+        value = (current, total)
+        if value == self._last_value:
+            return
+
+        now = time.monotonic()
+        done = current >= total
+        if self._last_value is not None and not done and now - self._last_time < 0.5:
+            return
+
+        self._last_time = now
+        self._last_value = value
+        percent = 100.0 if total == 0 else min(100.0, 100.0 * current / total)
+        if self.unit == "bytes":
+            detail = (
+                f"{self._format_bytes(current)}/{self._format_bytes(total)}"
+            )
+        else:
+            detail = f"{current:,}/{total:,} terms"
+        print(
+            f"{self.label}: {detail} ({percent:5.1f}%)",
+            file=sys.stderr,
+            flush=True,
+        )
+
+
+def _open(
+    sequence: str,
+    *,
+    cache_dir: Path | None,
+    refresh: bool,
+    cache: bool,
+    progress: bool,
+):
+    definition = registry.resolve(sequence)
+    load_progress = (
+        _ProgressPrinter(f"load {definition.id}", "bytes") if progress else None
+    )
     return open_run(
         definition,
-        cache_dir=args.cache_dir,
-        refresh=args.refresh,
-        use_cache=not args.no_cache,
+        cache_dir=cache_dir,
+        refresh=refresh,
+        use_cache=cache,
+        load_progress=load_progress,
     )
+
+
+def _ensure(run, count: int, *, progress: bool) -> None:
+    callback = (
+        _ProgressPrinter(f"compute {run.definition.id}", "terms")
+        if progress
+        else None
+    )
+    run.ensure(count, progress=callback)
 
 
 def _projection(definition, name: str | None):
@@ -61,15 +127,26 @@ def _projection(definition, name: str | None):
         ) from exc
 
 
-def command_list(_: argparse.Namespace) -> int:
+@app.command(name="list")
+def list_sequences() -> None:
+    """List built-in sequences."""
+
     for definition in registry:
         oeis = f" [{definition.oeis}]" if definition.oeis else ""
         print(f"{definition.id}{oeis}\t{definition.name}")
-    return 0
 
 
-def command_info(args: argparse.Namespace) -> int:
-    definition = registry.resolve(args.sequence)
+@app.command
+def info(sequence: str) -> None:
+    """Show metadata for a sequence.
+
+    Parameters
+    ----------
+    sequence
+        Sequence ID, OEIS number, or registered alias.
+    """
+
+    definition = registry.resolve(sequence)
     print(f"id: {definition.id}")
     print(f"name: {definition.name}")
     if definition.oeis:
@@ -81,109 +158,174 @@ def command_info(args: argparse.Namespace) -> int:
     print("projections: " + (", ".join(definition.projections or {}) or "none"))
     if definition.description:
         print(f"description: {definition.description}")
-    return 0
 
 
-def command_compute(args: argparse.Namespace) -> int:
-    run = _open(args)
-    run.ensure(args.count)
-    print(f"{run.definition.id}: cached/computed {args.count} terms")
+@app.command
+def compute(
+    sequence: str,
+    count: NonNegativeInt,
+    *,
+    cache_dir: Path | None = None,
+    refresh: bool = False,
+    cache: bool = True,
+    progress: bool = True,
+) -> None:
+    """Compute and optionally cache a sequence prefix.
+
+    Parameters
+    ----------
+    sequence
+        Sequence ID, OEIS number, or registered alias.
+    count
+        Number of terms to ensure are available.
+    cache_dir
+        Override the pickle cache directory.
+    refresh
+        Ignore an existing pickle and regenerate from a fresh generator.
+    cache
+        Load and save the generator pickle. Use ``--no-cache`` to disable it.
+    progress
+        Print cache-loading and computation progress. Use ``--no-progress`` to
+        suppress it.
+    """
+
+    run = _open(
+        sequence,
+        cache_dir=cache_dir,
+        refresh=refresh,
+        cache=cache,
+        progress=progress,
+    )
+    _ensure(run, count, progress=progress)
+    print(f"{run.definition.id}: cached/computed {count} terms")
     if run.cache_path is not None:
         print(run.cache_path)
-    return 0
 
 
-def command_terms(args: argparse.Namespace) -> int:
-    run = _open(args)
-    stop = args.start_position + args.count
-    for record in run.records(args.start_position, stop):
+@app.command
+def terms(
+    sequence: str,
+    count: NonNegativeInt,
+    *,
+    start_position: NonNegativeInt = 0,
+    cache_dir: Path | None = None,
+    refresh: bool = False,
+    cache: bool = True,
+    progress: bool = True,
+) -> None:
+    """Print a sequence slice.
+
+    Parameters
+    ----------
+    sequence
+        Sequence ID, OEIS number, or registered alias.
+    count
+        Number of terms to print.
+    start_position
+        Zero-based sequence position at which to start.
+    cache_dir
+        Override the pickle cache directory.
+    refresh
+        Ignore an existing pickle and regenerate from a fresh generator.
+    cache
+        Load and save the generator pickle. Use ``--no-cache`` to disable it.
+    progress
+        Print cache-loading and computation progress. Use ``--no-progress`` to
+        suppress it.
+    """
+
+    run = _open(
+        sequence,
+        cache_dir=cache_dir,
+        refresh=refresh,
+        cache=cache,
+        progress=progress,
+    )
+    stop = start_position + count
+    _ensure(run, stop, progress=progress)
+    for record in run.records(start_position, stop):
         print(f"{record.subscript}\t{record.value}")
-    return 0
 
 
-def command_table(args: argparse.Namespace) -> int:
-    run = _open(args)
-    stop = args.start_position + args.count
-    records = run.records(args.start_position, stop)
-    projection = _projection(run.definition, args.projection)
-    table = build_incidence_table(
+@app.command
+def table(
+    sequence: str,
+    count: NonNegativeInt,
+    *,
+    start_position: NonNegativeInt = 0,
+    projection: str | None = None,
+    columns: ColumnChoice = "used",
+    format: OutputFormat = "text",
+    width: NonNegativeInt = 120,
+    cache_dir: Path | None = None,
+    refresh: bool = False,
+    cache: bool = True,
+    progress: bool = True,
+) -> None:
+    """Print an incidence chronology table.
+
+    Parameters
+    ----------
+    sequence
+        Sequence ID, OEIS number, or registered alias.
+    count
+        Number of sequence terms to include.
+    start_position
+        Zero-based sequence position at which to start.
+    projection
+        Named incidence projection. Omit when the sequence has exactly one.
+    columns
+        Feature-column policy: ``used`` or ``through-largest``.
+    format
+        Output format: text, markdown, json, csv, or tsv.
+    width
+        Maximum text-table width before panel splitting.
+    cache_dir
+        Override the pickle cache directory.
+    refresh
+        Ignore an existing pickle and regenerate from a fresh generator.
+    cache
+        Load and save the generator pickle. Use ``--no-cache`` to disable it.
+    progress
+        Print cache-loading and computation progress. Use ``--no-progress`` to
+        suppress it.
+    """
+
+    run = _open(
+        sequence,
+        cache_dir=cache_dir,
+        refresh=refresh,
+        cache=cache,
+        progress=progress,
+    )
+    stop = start_position + count
+    _ensure(run, stop, progress=progress)
+    records = run.records(start_position, stop)
+    selected_projection = _projection(run.definition, projection)
+    incidence_table = build_incidence_table(
         records,
-        projection=projection,
-        column_mode=ColumnMode(args.columns),
+        projection=selected_projection,
+        column_mode=ColumnMode(columns),
     )
-    if args.format == "text":
-        output = render_text(table, max_width=args.width)
-    elif args.format == "markdown":
-        output = render_markdown(table)
-    elif args.format == "json":
-        output = render_json(table)
-    elif args.format == "csv":
-        output = render_delimited(table, delimiter=",")
+
+    if format == "text":
+        output = render_text(incidence_table, max_width=width)
+    elif format == "markdown":
+        output = render_markdown(incidence_table)
+    elif format == "json":
+        output = render_json(incidence_table)
+    elif format == "csv":
+        output = render_delimited(incidence_table, delimiter=",")
     else:
-        output = render_delimited(table, delimiter="\t")
+        output = render_delimited(incidence_table, delimiter="\t")
     print(output, end="")
-    return 0
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="lex-earliest-seqs")
-    subparsers = parser.add_subparsers(dest="command", required=True)
+def main() -> None:
+    """Run the Cyclopts application."""
 
-    list_parser = subparsers.add_parser("list", help="list built-in sequences")
-    list_parser.set_defaults(func=command_list)
-
-    info_parser = subparsers.add_parser("info", help="show sequence metadata")
-    info_parser.add_argument("sequence")
-    info_parser.set_defaults(func=command_info)
-
-    compute_parser = subparsers.add_parser(
-        "compute", help="compute/cache a sequence prefix"
-    )
-    compute_parser.add_argument("sequence")
-    compute_parser.add_argument("count", type=int)
-    _add_cache_options(compute_parser)
-    compute_parser.set_defaults(func=command_compute)
-
-    terms_parser = subparsers.add_parser("terms", help="print a sequence slice")
-    terms_parser.add_argument("sequence")
-    terms_parser.add_argument("count", type=int)
-    terms_parser.add_argument("--start-position", type=int, default=0)
-    _add_cache_options(terms_parser)
-    terms_parser.set_defaults(func=command_terms)
-
-    table_parser = subparsers.add_parser(
-        "table", help="print an incidence chronology table"
-    )
-    table_parser.add_argument("sequence")
-    table_parser.add_argument("count", type=int)
-    table_parser.add_argument("--start-position", type=int, default=0)
-    table_parser.add_argument("--projection")
-    table_parser.add_argument(
-        "--columns",
-        choices=[ColumnMode.USED.value, ColumnMode.THROUGH_LARGEST.value],
-        default=ColumnMode.USED.value,
-    )
-    table_parser.add_argument(
-        "--format",
-        choices=["text", "markdown", "json", "csv", "tsv"],
-        default="text",
-    )
-    table_parser.add_argument("--width", type=int, default=120)
-    _add_cache_options(table_parser)
-    table_parser.set_defaults(func=command_table)
-
-    return parser
-
-
-def main() -> int:
-    parser = build_parser()
-    args = parser.parse_args()
-    if getattr(args, "count", 0) < 0:
-        parser.error("count must be nonnegative")
-    if getattr(args, "start_position", 0) < 0:
-        parser.error("start-position must be nonnegative")
-    return args.func(args)
+    app()
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    main()

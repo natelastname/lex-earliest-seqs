@@ -51,3 +51,21 @@ def test_generated_prefix_is_written(tmp_path):
     run = open_run(definition(), cache_dir=tmp_path)
     run.ensure(1)
     assert run.cache_path is not None and run.cache_path.exists()
+
+
+def test_pickle_load_reports_byte_progress(tmp_path):
+    first = open_run(definition(), cache_dir=tmp_path)
+    first.ensure(4)
+
+    events: list[tuple[int, int]] = []
+    second = open_run(
+        definition(),
+        cache_dir=tmp_path,
+        load_progress=lambda current, total: events.append((current, total)),
+    )
+
+    assert second.terms[-1] == 2**400
+    assert events[0][0] == 0
+    assert events[-1][0] == events[-1][1]
+    assert events[-1][1] > 0
+    assert all(0 <= current <= total for current, total in events)

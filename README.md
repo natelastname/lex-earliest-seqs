@@ -55,10 +55,14 @@ table = build_incidence_table(
 print(render_text(table))
 ```
 
-The initial zoo contains Enots--Wolley (OEIS A336957) and its binary-support
-analogue (OEIS A338833). Both generators are intentionally transparent rather
-than optimized; they serve as reference implementations and demonstrations of
-pickleable stateful generators with different incidence projections.
+The initial zoo contains Enots--Wolley (OEIS A336957), its binary-support
+analogue (OEIS A338833), and forced-squarefree Enots--Wolley (OEIS A399457).
+The A336957 generator uses radical-table candidate acceleration while retaining
+its generated terms, a plain `set[int]` of used values, and its least-unused
+scan pointer as pickleable continuation state. Its large radical table is
+derived and omitted from the pickle, then rebuilt lazily only when a loaded
+cache must be extended. The other initial generators remain transparent
+reference implementations.
 
 ## Defining a sequence
 
@@ -96,15 +100,43 @@ mappings through `IncidenceProjection`.
 lex-earliest-seqs list
 lex-earliest-seqs info ew
 lex-earliest-seqs compute ew 10000
+lex-earliest-seqs compute A399457 10000
 lex-earliest-seqs terms ew 20
 lex-earliest-seqs table ew 30 --projection prime-exponents
 lex-earliest-seqs table A338833 30 --projection binary-digits
 lex-earliest-seqs table ew 30 --format markdown
 ```
 
+Cache retrieval and sequence computation print progress to stderr by default.
+This keeps term/table output on stdout clean for piping. Pass `--no-progress`
+to `compute`, `terms`, or `table` to suppress progress reporting.
+
 By default pickles are stored under
 `$XDG_CACHE_HOME/lex-earliest-seqs` or `~/.cache/lex-earliest-seqs`.
 Writes use a temporary file followed by an atomic replace.
+
+## One-off migration of the old EW cache
+
+The temporary migration script converts the historical `enots-wolley-2`
+A336957 term-list pickle into the native stateful-generator cache **without
+recomputing or replaying any sequence terms**:
+
+```console
+uv run python scripts/migrate_legacy_ew_cache.py
+```
+
+By default it reads `~/.cache/enots-wolley-2/terms-v1.pkl` and writes
+`~/.cache/lex-earliest-seqs/A336957.pkl`. It validates the old cache identity,
+reconstructs `used = set(terms)` and the least-unused scan pointer, writes the
+new pickle, then loads it back for verification. If a native A336957 cache
+already exists, use:
+
+```console
+uv run python scripts/migrate_legacy_ew_cache.py --force
+```
+
+This migration code is intentionally temporary and can be deleted after the
+large research cache has been converted successfully.
 
 ## Development
 

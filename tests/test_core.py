@@ -47,3 +47,17 @@ def test_invalid_subscript_fails():
     run = SequenceRun(definition(), CountingGenerator())
     with pytest.raises(IndexError):
         run.at_subscript(0)
+
+
+def test_ensure_reports_monotone_computation_progress():
+    run = SequenceRun(definition(), CountingGenerator())
+    events: list[tuple[int, int]] = []
+
+    run.ensure(7, progress=lambda current, total: events.append((current, total)))
+
+    assert events[0] == (0, 7)
+    assert events[-1] == (7, 7)
+    assert all(total == 7 for _, total in events)
+    assert [current for current, _ in events] == sorted(
+        current for current, _ in events
+    )
