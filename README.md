@@ -56,10 +56,10 @@ print(render_text(table))
 ```
 
 The initial zoo contains Enots--Wolley (OEIS A336957), its binary-support
-analogue (OEIS A338833), and forced-squarefree Enots--Wolley under the temporary
-OEIS placeholder A000000. The generators are intentionally transparent rather
-than optimized; they serve as reference implementations and demonstrations of
-pickleable stateful generators with different incidence projections.
+analogue (OEIS A338833), and forced-squarefree Enots--Wolley (OEIS A399457).
+The generators are intentionally transparent rather than optimized; they serve
+as reference implementations and demonstrations of pickleable stateful
+generators with different incidence projections.
 
 ## Defining a sequence
 
@@ -97,7 +97,7 @@ mappings through `IncidenceProjection`.
 lex-earliest-seqs list
 lex-earliest-seqs info ew
 lex-earliest-seqs compute ew 10000
-lex-earliest-seqs compute A000000 10000
+lex-earliest-seqs compute A399457 10000
 lex-earliest-seqs terms ew 20
 lex-earliest-seqs table ew 30 --projection prime-exponents
 lex-earliest-seqs table A338833 30 --projection binary-digits
