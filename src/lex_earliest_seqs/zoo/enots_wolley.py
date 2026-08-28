@@ -74,10 +74,9 @@ class EnotsWolleyGenerator:
     """Fast least-unused EW scan with pickleable continuation state.
 
     Candidate support introduction is tested with a precomputed radical table.
-    The exact generated terms, the set of used values, and the least-unused scan
-    pointer survive cache round trips. The radical table is a large derived
-    acceleration structure, so it is deliberately omitted from the pickle and
-    rebuilt lazily only if a loaded generator is extended again.
+    Used values remain a plain Python set. The radical table is derived and is
+    therefore omitted from persisted pickles; it is rebuilt lazily only when a
+    loaded generator is extended again.
     """
 
     terms: list[int] = field(default_factory=lambda: [1, 2])
@@ -117,6 +116,12 @@ class EnotsWolleyGenerator:
         while len(self.terms) < count:
             previous = self.terms[-1]
             two_back = self.terms[-2]
+            if previous > self.limit:
+                new_limit = self.limit
+                while new_limit < previous:
+                    new_limit *= 2
+                self._resize(new_limit)
+                assert self.radicals is not None
             previous_radical = self.radicals[previous]
             candidate = self.smallest_unused
 
