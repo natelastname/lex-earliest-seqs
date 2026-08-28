@@ -129,7 +129,11 @@ By default it reads `~/.cache/enots-wolley-2/terms-v1.pkl` and writes
 `~/.cache/lex-earliest-seqs/A336957.pkl`. It validates the old cache identity,
 reconstructs `used = set(terms)` and the least-unused scan pointer, writes the
 new pickle, then loads it back for verification. If a native A336957 cache
-already exists, pass `--force` to replace it.
+already exists, use:
+
+```console
+uv run python scripts/migrate_legacy_ew_cache.py --force
+```
 
 This migration code is intentionally temporary and can be deleted after the
 large research cache has been converted successfully.
