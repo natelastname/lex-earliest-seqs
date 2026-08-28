@@ -143,7 +143,11 @@ class SequenceRun(Generic[ObjectT]):
                 f"generator produced only {len(self.generator.terms)} terms "
                 f"after extend_to({count})"
             )
-        if save and self.cache_path is not None and len(self.generator.terms) != before:
+        if (
+            save
+            and self.cache_path is not None
+            and (len(self.generator.terms) != before or not self.cache_path.exists())
+        ):
             from .cache import save_generator
 
             save_generator(self.definition, self.generator, self.cache_path)
