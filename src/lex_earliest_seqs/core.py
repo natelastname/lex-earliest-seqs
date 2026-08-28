@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Generic, Protocol, TypeVar, runtime_checkable
 
 ObjectT = TypeVar("ObjectT")
+ProgressCallback = Callable[[int, int], None]
 
 
 @runtime_checkable
@@ -133,11 +134,55 @@ class SequenceRun(Generic[ObjectT]):
     def terms(self) -> Sequence[ObjectT]:
         return self.generator.terms
 
-    def ensure(self, count: int, *, save: bool = True) -> Sequence[ObjectT]:
+    def ensure(
+        self,
+        count: int,
+        *,
+        save: bool = True,
+        progress: ProgressCallback | None = None,
+        progress_chunk_size: int | None = None,
+    ) -> Sequence[ObjectT]:
+        """Ensure ``count`` terms are available, optionally reporting progress.
+
+        Progress callbacks receive ``(current_count, target_count)``. When progress
+        is requested, the generator is extended in bounded batches so opaque,
+        stateful generators still expose useful progress without needing their own
+        callback API.
+        """
+
         if count < 0:
             raise ValueError("count must be nonnegative")
+        if progress_chunk_size is not None and progress_chunk_size < 1:
+            raise ValueError("progress_chunk_size must be positive")
+
         before = len(self.generator.terms)
-        self.generator.extend_to(count)
+        if progress is None or before >= count:
+            self.generator.extend_to(count)
+        else:
+            current = before
+            progress(min(current, count), count)
+            remaining = count - current
+            chunk_size = progress_chunk_size or max(
+                1,
+                min(5_000, (remaining + 999) // 1_000),
+            )
+
+            while current < count:
+                target = min(count, current + chunk_size)
+                self.generator.extend_to(target)
+                generated = len(self.generator.terms)
+                if generated < target:
+                    raise RuntimeError(
+                        f"generator produced only {generated} terms "
+                        f"after extend_to({target})"
+                    )
+                if generated <= current:
+                    raise RuntimeError(
+                        "generator made no progress while extending sequence"
+                    )
+                current = generated
+                progress(min(current, count), count)
+
         if len(self.generator.terms) < count:
             raise RuntimeError(
                 f"generator produced only {len(self.generator.terms)} terms "
