@@ -100,6 +100,8 @@ def _load_legacy_terms(source: Path, *, progress: bool) -> list[int]:
         raise LegacyEWCacheError(
             "legacy term_count does not match the stored term list length"
         )
+    if len(terms) < 2 or terms[:2] != [1, 2]:
+        raise LegacyEWCacheError("legacy cache is missing the standard EW initial terms")
     if terms[: len(EXPECTED_PREFIX)] != EXPECTED_PREFIX[: len(terms)]:
         raise LegacyEWCacheError("legacy cache does not have the expected A336957 prefix")
     if any(type(term) is not int or term < 1 for term in terms):
@@ -133,11 +135,7 @@ def _generator_from_legacy_terms(
     # Only the predecessor and the next scan point need to fit in the radical
     # table when computation resumes. The table itself is deliberately absent
     # from the migrated pickle and will be generated lazily on first extension.
-    needed = smallest_unused
-    if terms:
-        needed = max(needed, terms[-1])
-    if len(terms) >= 2:
-        needed = max(needed, terms[-2])
+    needed = max(smallest_unused, terms[-1], terms[-2])
     limit = _next_power_of_two_at_least(needed)
 
     if progress:
@@ -175,6 +173,8 @@ def migrate_legacy_ew_cache(
     source = source.expanduser()
     target = target.expanduser()
 
+    if source.resolve() == target.resolve():
+        raise ValueError("source and destination cache paths must be different")
     if target.exists() and not force:
         raise FileExistsError(
             f"destination already exists: {target}; pass --force to replace it"
@@ -183,7 +183,7 @@ def migrate_legacy_ew_cache(
     terms = _load_legacy_terms(source, progress=progress)
     generator = _generator_from_legacy_terms(terms, progress=progress)
     term_count = len(generator.terms)
-    last_term = generator.terms[-1] if generator.terms else None
+    last_term = generator.terms[-1]
     smallest_unused = generator.smallest_unused
 
     if progress:
@@ -200,8 +200,15 @@ def migrate_legacy_ew_cache(
         if progress:
             print("verifying native cache by loading it back", file=sys.stderr)
 
+        next_verify_report = 0
+        verify_step = 1
+
         def verify_progress(current: int, total: int) -> None:
+            nonlocal next_verify_report, verify_step
             if not progress:
+                return
+            verify_step = max(1, total // 20)
+            if current < next_verify_report and current != total:
                 return
             percentage = 100.0 if total == 0 else 100.0 * current / total
             print(
@@ -209,6 +216,8 @@ def migrate_legacy_ew_cache(
                 file=sys.stderr,
                 flush=True,
             )
+            while next_verify_report <= current:
+                next_verify_report += verify_step
 
         restored = load_generator(
             definition,
@@ -219,9 +228,9 @@ def migrate_legacy_ew_cache(
             raise LegacyEWCacheError("native cache restored the wrong generator type")
         if len(restored.terms) != term_count:
             raise LegacyEWCacheError("native cache term count changed during migration")
-        if (restored.terms[-1] if restored.terms else None) != last_term:
+        if restored.terms[-1] != last_term:
             raise LegacyEWCacheError("native cache final term changed during migration")
-        if restored.terms[: len(EXPECTED_PREFIX)] != EXPECTED_PREFIX[:term_count]:
+        if restored.terms[: len(EXPECTED_PREFIX)] != EXPECTED_PREFIX:
             raise LegacyEWCacheError("native cache prefix changed during migration")
         if len(restored.used) != term_count:
             raise LegacyEWCacheError("native cache used-set size is inconsistent")
