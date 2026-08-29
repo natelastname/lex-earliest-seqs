@@ -1,8 +1,18 @@
+import pytest
+
 from lex_earliest_seqs.cli import app
 
 
+def _run_cli(args: list[str]) -> None:
+    """Invoke Cyclopts as a CLI and require a successful process exit."""
+
+    with pytest.raises(SystemExit) as exc_info:
+        app(args)
+    assert exc_info.value.code == 0
+
+
 def test_list_command(capsys):
-    app(["list"])
+    _run_cli(["list"])
 
     output = capsys.readouterr().out
     assert "A336957" in output
@@ -10,7 +20,7 @@ def test_list_command(capsys):
 
 
 def test_terms_command_without_cache(capsys):
-    app(["terms", "ew", "5", "--no-cache"])
+    _run_cli(["terms", "ew", "5", "--no-cache"])
 
     captured = capsys.readouterr()
     assert captured.out.splitlines() == [
@@ -25,7 +35,7 @@ def test_terms_command_without_cache(capsys):
 
 
 def test_progress_can_be_disabled(capsys):
-    app(["terms", "ew", "5", "--no-cache", "--no-progress"])
+    _run_cli(["terms", "ew", "5", "--no-cache", "--no-progress"])
 
     captured = capsys.readouterr()
     assert captured.err == ""
