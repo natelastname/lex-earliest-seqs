@@ -4,7 +4,6 @@ from lex_earliest_seqs import registry
 from lex_earliest_seqs.cache import open_run
 from lex_earliest_seqs.zoo.binary_enots_wolley import (
     BinaryEnotsWolleyGenerator,
-    is_candidate as is_binary_candidate,
     next_admissible_binary,
 )
 from lex_earliest_seqs.zoo.enots_wolley import EnotsWolleyGenerator, is_candidate
@@ -34,6 +33,21 @@ def _reference_enots_wolley(count: int) -> list[int]:
     return terms
 
 
+def _reference_bit_support(value: int) -> set[int]:
+    return {bit for bit in range(value.bit_length()) if value & (1 << bit)}
+
+
+def _reference_binary_candidate(value: int, previous: int, two_back: int) -> bool:
+    support = _reference_bit_support(value)
+    previous_support = _reference_bit_support(previous)
+    two_back_support = _reference_bit_support(two_back)
+    return (
+        bool(support & previous_support)
+        and not bool(support & two_back_support)
+        and bool(support - previous_support)
+    )
+
+
 def _reference_binary_enots_wolley(count: int) -> list[int]:
     if count <= 2:
         return [1, 3][:count]
@@ -43,7 +57,7 @@ def _reference_binary_enots_wolley(count: int) -> list[int]:
     smallest_unused = 2
     while len(terms) < count:
         candidate = smallest_unused
-        while candidate in used or not is_binary_candidate(
+        while candidate in used or not _reference_binary_candidate(
             candidate, terms[-1], terms[-2]
         ):
             candidate += 1
@@ -164,7 +178,11 @@ def test_binary_successor_is_least_admissible_at_generated_states():
             terms[index - 1],
         )
         brute_force = smallest_unused
-        while not is_binary_candidate(brute_force, terms[index], terms[index - 1]):
+        while not _reference_binary_candidate(
+            brute_force,
+            terms[index],
+            terms[index - 1],
+        ):
             brute_force += 1
         assert successor == brute_force
 
