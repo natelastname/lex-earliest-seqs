@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from functools import cache
+from heapq import heappop, heappush
 from math import gcd, isqrt
 
 from ..core import SequenceDefinition
@@ -69,14 +70,32 @@ def _radical_table(limit: int) -> list[int]:
     return radicals
 
 
+def _next_coprime(lower_bound: int, forbidden_radical: int) -> int:
+    """Return the least integer >= ``lower_bound`` coprime to ``forbidden_radical``."""
+
+    candidate = max(1, lower_bound)
+    while gcd(candidate, forbidden_radical) != 1:
+        candidate += 1
+    return candidate
+
+
 @dataclass
 class EnotsWolleyGenerator:
-    """Fast least-unused EW scan with pickleable continuation state.
+    """EW generator merging exact locally admissible candidate streams.
+
+    For predecessor ``A`` and two-back term ``B``, let
+    ``X = P(A) \\ P(B) = {p_1 < ... < p_k}``. Every integer that shares a prime
+    with ``A`` and is coprime to ``B`` belongs to exactly one stream: stream ``i``
+    consists of ``p_i * m`` with ``m`` coprime to ``rad(B) * p_1 * ... * p_{i-1}``.
+    Thus the heap enumerates only values already satisfying the share/coprimality
+    conditions. Used values and values introducing no new prime are skipped by
+    advancing only their stream.
 
     Candidate support introduction is tested with a precomputed radical table.
     Used values remain a plain Python set. The radical table is derived and is
     therefore omitted from persisted pickles; it is rebuilt lazily only when a
-    loaded generator is extended again.
+    loaded generator is extended again. The persisted state layout is unchanged
+    from generator version 3, so existing version-3 caches remain compatible.
     """
 
     terms: list[int] = field(default_factory=lambda: [1, 2])
@@ -102,6 +121,78 @@ class EnotsWolleyGenerator:
         self.limit = new_limit
         self.radicals = _radical_table(new_limit)
 
+    def _ensure_value(self, value: int) -> None:
+        if value <= self.limit:
+            self._ensure_radicals()
+            return
+        new_limit = self.limit
+        while new_limit < value:
+            new_limit *= 2
+        self._resize(new_limit)
+
+    def _next_candidate(self) -> int:
+        previous = self.terms[-1]
+        two_back = self.terms[-2]
+        self._ensure_value(max(previous, two_back))
+        assert self.radicals is not None
+
+        previous_radical = self.radicals[previous]
+        two_back_radical = self.radicals[two_back]
+        shared_primes = tuple(sorted(prime_support(previous) - prime_support(two_back)))
+        if not shared_primes:
+            raise RuntimeError(
+                "EW state has no predecessor prime disjoint from the two-back term"
+            )
+
+        # Each heap item is (candidate, stream_prime, multiplier,
+        # forbidden_radical). Stream i is assigned exactly the candidates whose
+        # least-indexed divisor from shared_primes is stream_prime.
+        heap: list[tuple[int, int, int, int]] = []
+        earlier_shared_product = 1
+        for stream_prime in shared_primes:
+            forbidden_radical = two_back_radical * earlier_shared_product
+            lower_multiplier = (
+                self.smallest_unused + stream_prime - 1
+            ) // stream_prime
+            multiplier = _next_coprime(lower_multiplier, forbidden_radical)
+            heappush(
+                heap,
+                (
+                    stream_prime * multiplier,
+                    stream_prime,
+                    multiplier,
+                    forbidden_radical,
+                ),
+            )
+            earlier_shared_product *= stream_prime
+
+        while heap:
+            candidate, stream_prime, multiplier, forbidden_radical = heappop(heap)
+            self._ensure_value(candidate)
+            assert self.radicals is not None
+
+            # The stream construction already guarantees gcd(candidate, previous)
+            # != 1 and gcd(candidate, two_back) == 1. The remaining greedy tests
+            # are unusedness and introduction of a prime absent from previous.
+            if (
+                candidate not in self.used
+                and previous_radical % self.radicals[candidate] != 0
+            ):
+                return candidate
+
+            multiplier = _next_coprime(multiplier + 1, forbidden_radical)
+            heappush(
+                heap,
+                (
+                    stream_prime * multiplier,
+                    stream_prime,
+                    multiplier,
+                    forbidden_radical,
+                ),
+            )
+
+        raise RuntimeError("EW candidate heap unexpectedly exhausted")
+
     def extend_to(self, count: int) -> None:
         if count < 0:
             raise ValueError("count must be nonnegative")
@@ -111,37 +202,8 @@ class EnotsWolleyGenerator:
             raise RuntimeError("EnotsWolleyGenerator state is missing initial terms")
 
         self._ensure_radicals()
-        assert self.radicals is not None
-
         while len(self.terms) < count:
-            previous = self.terms[-1]
-            two_back = self.terms[-2]
-            if previous > self.limit:
-                new_limit = self.limit
-                while new_limit < previous:
-                    new_limit *= 2
-                self._resize(new_limit)
-                assert self.radicals is not None
-            previous_radical = self.radicals[previous]
-            candidate = self.smallest_unused
-
-            while True:
-                if candidate > self.limit:
-                    self._resize(self.limit * 2)
-                    assert self.radicals is not None
-                    previous_radical = self.radicals[previous]
-
-                # rad(candidate) divides rad(previous) exactly when candidate
-                # introduces no prime absent from the predecessor.
-                if (
-                    candidate not in self.used
-                    and gcd(candidate, previous) != 1
-                    and gcd(candidate, two_back) == 1
-                    and previous_radical % self.radicals[candidate] != 0
-                ):
-                    break
-                candidate += 1
-
+            candidate = self._next_candidate()
             self.terms.append(candidate)
             self.used.add(candidate)
             while self.smallest_unused in self.used:
