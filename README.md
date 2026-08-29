@@ -58,7 +58,7 @@ print(render_text(table))
 The initial zoo contains Enots--Wolley (OEIS A336957), its binary-support
 analogue (OEIS A338833), and forced-squarefree Enots--Wolley (OEIS A399457).
 A336957 uses a radical table to accelerate candidate predicates. A338833 goes
-further and uses an exact binary digit-DP successor, jumping directly between
+further and uses an exact O(log n) bit successor, jumping directly between
 admissible candidates rather than scanning intervening integers. A399457
 expresses each admissible squarefree candidate uniquely as `x*y`, with `x` a
 nonempty product of eligible predecessor primes, and merges the resulting
