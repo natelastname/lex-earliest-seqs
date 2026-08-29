@@ -81,21 +81,26 @@ def _next_coprime(lower_bound: int, forbidden_radical: int) -> int:
 
 @dataclass
 class EnotsWolleyGenerator:
-    """EW generator merging exact locally admissible candidate streams.
+    """EW generator merging history-aware locally admissible candidate streams.
 
     For predecessor ``A`` and two-back term ``B``, let
     ``X = P(A) \\ P(B) = {p_1 < ... < p_k}``. Every integer that shares a prime
     with ``A`` and is coprime to ``B`` belongs to exactly one stream: stream ``i``
     consists of ``p_i * m`` with ``m`` coprime to ``rad(B) * p_1 * ... * p_{i-1}``.
-    Thus the heap enumerates only values already satisfying the share/coprimality
-    conditions. Used values and values introducing no new prime are skipped by
-    advancing only their stream.
+
+    Each stream prime also owns a lazy successor-with-delete structure over its
+    multipliers. Once ``p*m`` is discovered to be globally used, multiplier ``m``
+    is permanently linked to its next possible successor. Path compression makes
+    future occurrences of the same prime jump over historically exhausted
+    multipliers rather than rediscovering them. Local coprimality failures and
+    failures to introduce a new prime are never deleted because those conditions
+    can change with the predecessor pair.
 
     Candidate support introduction is tested with a precomputed radical table.
     Used values remain a plain Python set. The radical table is derived and is
-    therefore omitted from persisted pickles; it is rebuilt lazily only when a
-    loaded generator is extended again. The persisted state layout is unchanged
-    from generator version 3, so existing version-3 caches remain compatible.
+    therefore omitted from persisted pickles; the multiplier-successor maps are
+    persisted. Older generator-version-3 caches have no successor maps, so they
+    acquire them lazily on first extension and remain compatible.
     """
 
     terms: list[int] = field(default_factory=lambda: [1, 2])
@@ -103,13 +108,73 @@ class EnotsWolleyGenerator:
     smallest_unused: int = 3
     limit: int = _INITIAL_LIMIT
     radicals: list[int] | None = field(default=None, repr=False)
+    unused_multiplier_successors: dict[int, dict[int, int]] = field(
+        default_factory=dict,
+        repr=False,
+    )
 
     def __getstate__(self) -> dict[str, object]:
-        """Persist continuation state while dropping the derived radical table."""
+        """Persist continuation/history state while dropping derived radicals."""
 
         state = self.__dict__.copy()
         state["radicals"] = None
         return state
+
+    def _successor_maps(self) -> dict[int, dict[int, int]]:
+        """Return successor maps, initializing them for older version-3 pickles."""
+
+        maps = getattr(self, "unused_multiplier_successors", None)
+        if maps is None:
+            maps = {}
+            self.unused_multiplier_successors = maps
+        return maps
+
+    def _find_multiplier_successor(self, stream_prime: int, multiplier: int) -> int:
+        """Find the first multiplier not lazily deleted for ``stream_prime``."""
+
+        parents = self._successor_maps().setdefault(stream_prime, {})
+        current = max(1, multiplier)
+        path: list[int] = []
+        while current in parents:
+            path.append(current)
+            current = parents[current]
+        for item in path:
+            parents[item] = current
+        return current
+
+    def _next_unused_multiplier(self, stream_prime: int, lower_bound: int) -> int:
+        """Return least ``m >= lower_bound`` not known to have ``p*m`` used.
+
+        Used products are permanent, so every discovered used multiplier is
+        safely deleted from this prime's successor set forever.
+        """
+
+        parents = self._successor_maps().setdefault(stream_prime, {})
+        multiplier = self._find_multiplier_successor(stream_prime, lower_bound)
+        while stream_prime * multiplier in self.used:
+            successor = self._find_multiplier_successor(
+                stream_prime,
+                multiplier + 1,
+            )
+            parents[multiplier] = successor
+            multiplier = successor
+        return multiplier
+
+    def _next_stream_multiplier(
+        self,
+        stream_prime: int,
+        lower_bound: int,
+        forbidden_radical: int,
+    ) -> int:
+        """Return least multiplier satisfying global-unused and local-coprime tests."""
+
+        multiplier = max(1, lower_bound)
+        while True:
+            multiplier = self._next_unused_multiplier(stream_prime, multiplier)
+            coprime_multiplier = _next_coprime(multiplier, forbidden_radical)
+            if coprime_multiplier == multiplier:
+                return multiplier
+            multiplier = coprime_multiplier
 
     def _ensure_radicals(self) -> None:
         if self.radicals is None or len(self.radicals) != self.limit + 1:
@@ -151,10 +216,15 @@ class EnotsWolleyGenerator:
         earlier_shared_product = 1
         for stream_prime in shared_primes:
             forbidden_radical = two_back_radical * earlier_shared_product
-            lower_multiplier = (
-                self.smallest_unused + stream_prime - 1
-            ) // stream_prime
-            multiplier = _next_coprime(lower_multiplier, forbidden_radical)
+            lower_multiplier = max(
+                1,
+                (self.smallest_unused + stream_prime - 1) // stream_prime,
+            )
+            multiplier = self._next_stream_multiplier(
+                stream_prime,
+                lower_multiplier,
+                forbidden_radical,
+            )
             heappush(
                 heap,
                 (
@@ -171,16 +241,23 @@ class EnotsWolleyGenerator:
             self._ensure_value(candidate)
             assert self.radicals is not None
 
-            # The stream construction already guarantees gcd(candidate, previous)
-            # != 1 and gcd(candidate, two_back) == 1. The remaining greedy tests
-            # are unusedness and introduction of a prime absent from previous.
+            # Stream construction guarantees the share/two-back-coprimality
+            # conditions and skips products already known to be used. The only
+            # mathematical condition left is introduction of a new prime.
             if (
                 candidate not in self.used
                 and previous_radical % self.radicals[candidate] != 0
             ):
                 return candidate
 
-            multiplier = _next_coprime(multiplier + 1, forbidden_radical)
+            # A used candidate may be permanently deleted by the successor DSU.
+            # A new-prime failure must only be skipped for this local state.
+            next_lower_bound = multiplier if candidate in self.used else multiplier + 1
+            multiplier = self._next_stream_multiplier(
+                stream_prime,
+                next_lower_bound,
+                forbidden_radical,
+            )
             heappush(
                 heap,
                 (
