@@ -1,5 +1,4 @@
 import pickle
-from math import gcd
 
 from lex_earliest_seqs import registry
 from lex_earliest_seqs.cache import open_run
