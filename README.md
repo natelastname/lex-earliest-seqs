@@ -1,23 +1,34 @@
 # lex-earliest-seqs
 
-A small research library for defining, computing, caching, and inspecting
-lexicographically earliest sequences.
+Research tools for defining, computing, caching, and inspecting
+**lexicographically earliest sequences**.
 
-The package deliberately distinguishes a **sequence position** from the
-**ambient rank of an object**. A sequence chooses objects from an ordered
-object space; the 17th sequence term need not be the 17th admissible object.
+The package is designed for sequences whose next term is chosen greedily from
+an ordered ambient object space. It keeps sequence positions separate from
+ambient-object ranks, supports stateful high-performance generators, persists
+entire generator states with pickle, and provides generic incidence chronology
+tables for supports such as prime factors or binary digits.
 
-## Design
+Python 3.12+ is required.
 
-A sequence definition supplies:
+## Major features
 
-- a stable ID and name (optionally an OEIS number),
-- an ordered ambient object space,
-- a factory for a mutable stateful generator,
-- a generator/definition version for cache compatibility, and
-- zero or more incidence projections used only for chronology tables.
+### Sequence position vs. ambient object
 
-A generator has only one required contract:
+The package deliberately distinguishes:
+
+- **position**: zero-based position in the generated sequence;
+- **subscript**: mathematical sequence index (`position + offset`);
+- **object rank**: zero-based rank in the ambient admissible object space;
+- **value**: the actual object selected by the sequence.
+
+For example, the 17th sequence term need not be the 17th admissible integer.
+This distinction lets the same framework work with positive integers,
+nonnegative integers, or other ordered countable object spaces.
+
+### Stateful, pickleable generators
+
+A generator has a deliberately small contract:
 
 ```python
 class MyGenerator:
@@ -27,56 +38,369 @@ class MyGenerator:
         ...
 ```
 
-The **entire generator object is pickled**. Sequence-specific generators are
-therefore free to retain heaps, bitsets, factor tables, occurrence indexes, or
-other expensive computation state without teaching the generic package how to
-serialize them. Python arbitrary-precision integers are preserved directly.
-Caches are trusted local research artifacts; pickle security is intentionally
-not treated as a package concern.
+The **entire generator object is persisted**. Sequence-specific implementations
+can therefore retain whatever continuation state makes computation fast:
+heaps, occurrence indexes, candidate frontiers, factor tables, or other data
+structures. Derived structures can be omitted from the pickle and rebuilt
+lazily after loading.
 
-Incidence projections are separate from generation. Changing a support
-function or chronology-table renderer cannot change the sequence.
+Caches are trusted local research artifacts. Pickle security against untrusted
+files is intentionally not a package concern.
 
-## Example
+### Persistent computation cache
+
+`open_run()` automatically loads and saves generator pickles. By default they
+live under:
+
+```text
+$XDG_CACHE_HOME/lex-earliest-seqs/
+```
+
+or, when `XDG_CACHE_HOME` is unset:
+
+```text
+~/.cache/lex-earliest-seqs/
+```
+
+Writes use a temporary file followed by an atomic replace. Sequence definitions
+carry generator and definition versions so incompatible caches are rejected
+rather than silently reused.
+
+### Incidence chronology tables
+
+Generation and incidence/display logic are separate. A sequence can expose one
+or more named **incidence projections**, such as:
+
+- prime exponents / prime support;
+- binary digit support;
+- a custom Boolean support function;
+- a custom sparse weighted support.
+
+Chronology tables can be rendered as text, Markdown, JSON, CSV, or TSV. Changing
+a projection or renderer cannot change sequence generation.
+
+### Built-in sequence zoo
+
+| ID | Name | Useful aliases | Projection |
+| --- | --- | --- | --- |
+| `A336957` | Enots--Wolley | `ew`, `enots-wolley` | `prime-exponents` |
+| `A338833` | Binary Enots--Wolley | `bew`, `binary-ew` | `binary-digits` |
+| `A399457` | Forced-squarefree Enots--Wolley | `squarefree-ew`, `forced-squarefree-ew` | `prime-exponents` |
+
+The built-ins use sequence-specific candidate enumeration rather than relying
+on a generic brute-force scanner:
+
+- **A336957** partitions locally eligible integers into disjoint prime-indexed
+  streams and merges them with a heap;
+- **A338833** uses an exact bit successor to jump directly between locally
+  admissible binary candidates;
+- **A399457** merges squarefree candidate streams and persists per-stream
+  cofactor frontiers so late computation skips historically exhausted prefixes.
+
+## Installation / development
+
+```console
+uv sync
+```
+
+Run the CLI through the project environment with:
+
+```console
+uv run lex-earliest-seqs list
+```
+
+The installed console command is `lex-earliest-seqs`.
+
+## Command-line interface
+
+Sequence arguments accept the canonical ID, OEIS number, registered name, or
+alias.
+
+### List the built-in sequences
+
+```console
+lex-earliest-seqs list
+```
+
+### Inspect sequence metadata
+
+```console
+lex-earliest-seqs info ew
+lex-earliest-seqs info A399457
+```
+
+This prints the ID, name, OEIS number, offset, object space, cache versions,
+registered projections, and description.
+
+### Compute/cache a prefix
+
+```console
+lex-earliest-seqs compute ew 100000
+lex-earliest-seqs compute A399457 1000000
+```
+
+`compute` ensures that at least the requested number of terms are present in
+the generator cache.
+
+Useful cache controls are:
+
+```console
+# Ignore any existing cache and start from a fresh generator.
+lex-earliest-seqs compute ew 10000 --refresh
+
+# Do not load or save a cache.
+lex-earliest-seqs compute ew 10000 --no-cache
+
+# Store caches in another directory.
+lex-earliest-seqs compute ew 10000 --cache-dir ./sequence-cache
+
+# Suppress progress messages.
+lex-earliest-seqs compute ew 10000 --no-progress
+```
+
+Cache-loading and computation progress are written to **stderr**, so sequence
+or table data on stdout remains clean for piping.
+
+### Print terms
+
+```console
+lex-earliest-seqs terms ew 20
+lex-earliest-seqs terms A399457 20
+```
+
+The output contains mathematical subscript and value, separated by a tab.
+Slices use a zero-based sequence position:
+
+```console
+lex-earliest-seqs terms ew 25 --start-position 1000
+```
+
+The same `--cache-dir`, `--refresh`, `--no-cache`, and `--no-progress` controls
+available to `compute` also work for `terms`.
+
+### Print an incidence chronology table
+
+```console
+lex-earliest-seqs table ew 30
+lex-earliest-seqs table A338833 30 --projection binary-digits
+lex-earliest-seqs table A399457 50 --projection prime-exponents
+```
+
+When a sequence has exactly one projection, `--projection` may be omitted.
+
+Available output formats are:
+
+```console
+lex-earliest-seqs table ew 30 --format text
+lex-earliest-seqs table ew 30 --format markdown
+lex-earliest-seqs table ew 30 --format json
+lex-earliest-seqs table ew 30 --format csv
+lex-earliest-seqs table ew 30 --format tsv
+```
+
+Other useful table options:
+
+```console
+# Start at zero-based sequence position 1000.
+lex-earliest-seqs table ew 30 --start-position 1000
+
+# Include every feature column through the largest encountered feature,
+# rather than only columns actually used in the selected rows.
+lex-earliest-seqs table ew 30 --columns through-largest
+
+# Control panel splitting for text output.
+lex-earliest-seqs table ew 50 --width 160
+```
+
+`--columns` accepts `used` (the default) or `through-largest`.
+
+## Python API
+
+The main public API is exported directly from `lex_earliest_seqs`.
+
+### Resolve and compute a sequence
 
 ```python
 from lex_earliest_seqs import open_run, registry
-from lex_earliest_seqs.incidence import build_incidence_table, render_text
+
+definition = registry.resolve("A399457")
+run = open_run(definition)
+
+run.ensure(100_000)
+
+print(run.terms[:20])
+print(run.terms[99_999])
+```
+
+Aliases and OEIS IDs resolve to the same immutable `SequenceDefinition`:
+
+```python
+ew = registry.resolve("ew")
+binary = registry.resolve("bew")
+squarefree = registry.resolve("squarefree-ew")
+```
+
+Iterate over the registry to discover definitions programmatically:
+
+```python
+from lex_earliest_seqs import registry
+
+for definition in registry:
+    print(definition.id, definition.name, tuple(definition.projections))
+```
+
+### Positions, subscripts, and records
+
+`SequenceRun` provides explicit accessors for the different coordinate systems:
+
+```python
+from lex_earliest_seqs import open_run, registry
+
+run = open_run(registry.resolve("ew"))
+
+# Zero-based sequence position.
+value = run.at_position(99)
+
+# Mathematical sequence subscript, respecting the definition's offset.
+value = run.at_subscript(100)
+
+record = run.record_at_position(99)
+print(record.position)
+print(record.subscript)
+print(record.object_rank)
+print(record.value)
+```
+
+Get a range of full `TermRecord` objects with:
+
+```python
+records = run.records(100, 130)
+```
+
+### Cache controls from Python
+
+Default cached run:
+
+```python
+run = open_run(registry.resolve("ew"))
+```
+
+Disable caching entirely:
+
+```python
+run = open_run(registry.resolve("ew"), use_cache=False)
+```
+
+Use another cache directory:
+
+```python
+from pathlib import Path
+
+run = open_run(
+    registry.resolve("ew"),
+    cache_dir=Path("./sequence-cache"),
+)
+```
+
+Use one exact cache file:
+
+```python
+run = open_run(
+    registry.resolve("ew"),
+    cache_path="./ew.pkl",
+)
+```
+
+Ignore an existing cache and construct a fresh generator:
+
+```python
+run = open_run(registry.resolve("ew"), refresh=True)
+```
+
+`cache_dir` and `cache_path` are mutually exclusive.
+
+### Computation progress from Python
+
+`SequenceRun.ensure()` accepts a callback receiving `(current, target)`:
+
+```python
+from lex_earliest_seqs import open_run, registry
+
+run = open_run(registry.resolve("A399457"))
+
+
+def progress(current: int, target: int) -> None:
+    print(f"{current:,}/{target:,}")
+
+
+run.ensure(1_000_000, progress=progress)
+```
+
+Progress-aware computation extends opaque generators in batches. You can
+control the batch size explicitly with `progress_chunk_size`.
+
+Cache loading has a separate byte-progress callback:
+
+```python
+run = open_run(
+    registry.resolve("ew"),
+    load_progress=lambda current, total: print(current, total),
+)
+```
+
+### Build chronology tables from Python
+
+```python
+from lex_earliest_seqs import (
+    build_incidence_table,
+    open_run,
+    registry,
+    render_text,
+)
 
 sequence = registry.resolve("ew")
 run = open_run(sequence)
-run.ensure(1000)
+run.ensure(30)
 
 projection = sequence.projections["prime-exponents"]
 table = build_incidence_table(
     run.records(0, 30),
     projection=projection,
 )
+
 print(render_text(table))
 ```
 
-The initial zoo contains Enots--Wolley (OEIS A336957), its binary-support
-analogue (OEIS A338833), and forced-squarefree Enots--Wolley (OEIS A399457).
-A336957 partitions all integers that already share with the predecessor and
-avoid the two-back term into disjoint prime-indexed streams, then merges their
-heads with a min-heap; the radical table only filters values that fail to
-introduce a new prime. A338833 uses an exact O(log n) bit successor, jumping
-directly between admissible candidates rather than scanning intervening
-integers. A399457 expresses each admissible squarefree candidate uniquely as
-`x*y`, with `x` a nonempty product of eligible predecessor primes, and merges
-the resulting monotone candidate streams with a min-heap. For each recurring
-`x`, A399457 also persists the least base-eligible cofactor not already consumed
-by a previous term, so late runs jump over historically exhausted stream
-prefixes rather than rediscovering them. Large radical tables are derived state
-and are omitted from pickles, then rebuilt lazily only when needed.
+Other public renderers include:
 
-## Defining a sequence
+```python
+from lex_earliest_seqs import (
+    render_delimited,
+    render_json,
+    render_markdown,
+)
+
+markdown = render_markdown(table)
+json_text = render_json(table)
+csv_text = render_delimited(table, delimiter=",")
+tsv_text = render_delimited(table, delimiter="\t")
+```
+
+### Define and register a new sequence
+
+A new sequence supplies an ordered object space, a stateful generator factory,
+metadata, and optionally incidence projections.
 
 ```python
 from dataclasses import dataclass, field
 
-from lex_earliest_seqs import PositiveIntegers, SequenceDefinition
+from lex_earliest_seqs import (
+    PositiveIntegers,
+    SequenceDefinition,
+    registry,
+)
 from lex_earliest_seqs.projections import binary_digit_projection
+
 
 @dataclass
 class Generator:
@@ -86,63 +410,56 @@ class Generator:
         while len(self.terms) < count:
             self.terms.append(self.terms[-1] + 1)
 
+
 MY_SEQUENCE = SequenceDefinition(
     id="my-sequence",
     name="My sequence",
+    aliases=("mine",),
     generator_factory=Generator,
     generator_version=1,
+    definition_version=1,
+    offset=1,
     object_space=PositiveIntegers(),
     projections={"bits": binary_digit_projection()},
 )
+
+registry.register(MY_SEQUENCE)
 ```
 
-A boolean support function can be adapted directly with
-`boolean_support_projection`; weighted supports can return sparse coordinate
-mappings through `IncidenceProjection`.
+The generator may contain arbitrary pickleable continuation state. If a code
+change makes previously persisted generator state incompatible, increment
+`generator_version`. If the mathematical/metadata definition changes in a way
+that invalidates caches, increment `definition_version`.
 
-## CLI
-
-```console
-lex-earliest-seqs list
-lex-earliest-seqs info ew
-lex-earliest-seqs compute ew 10000
-lex-earliest-seqs compute A399457 10000
-lex-earliest-seqs terms ew 20
-lex-earliest-seqs table ew 30 --projection prime-exponents
-lex-earliest-seqs table A338833 30 --projection binary-digits
-lex-earliest-seqs table ew 30 --format markdown
-```
-
-Cache retrieval and sequence computation print progress to stderr by default.
-This keeps term/table output on stdout clean for piping. Pass `--no-progress`
-to `compute`, `terms`, or `table` to suppress progress reporting.
-
-By default pickles are stored under
-`$XDG_CACHE_HOME/lex-earliest-seqs` or `~/.cache/lex-earliest-seqs`.
-Writes use a temporary file followed by an atomic replace.
+Boolean support functions can be adapted with
+`boolean_support_projection`; weighted supports can be represented as sparse
+coordinate mappings through `IncidenceProjection`.
 
 ## One-off migration of the old EW cache
 
-The temporary migration script converts the historical `enots-wolley-2`
+The temporary migration helper converts the historical `enots-wolley-2`
 A336957 term-list pickle into the native stateful-generator cache **without
-recomputing or replaying any sequence terms**:
+recomputing or replaying the sequence prefix**:
 
 ```console
 uv run python scripts/migrate_legacy_ew_cache.py
 ```
 
-By default it reads `~/.cache/enots-wolley-2/terms-v1.pkl` and writes
-`~/.cache/lex-earliest-seqs/A336957.pkl`. It validates the old cache identity,
-reconstructs `used = set(terms)` and the least-unused scan pointer, writes the
-new pickle, then loads it back for verification. If a native A336957 cache
-already exists, use:
+By default it reads:
 
-```console
-uv run python scripts/migrate_legacy_ew_cache.py --force
+```text
+~/.cache/enots-wolley-2/terms-v1.pkl
 ```
 
-This migration code is intentionally temporary and can be deleted after the
-large research cache has been converted successfully.
+and writes:
+
+```text
+~/.cache/lex-earliest-seqs/A336957.pkl
+```
+
+If the native target already exists, pass `--force`. This migration code is
+intentionally temporary and can be removed after the research cache has been
+converted and verified.
 
 ## Development
 
