@@ -2,7 +2,16 @@ import pickle
 
 from lex_earliest_seqs import registry
 from lex_earliest_seqs.cache import open_run
+from lex_earliest_seqs.zoo.binary_enots_wolley import (
+    BinaryEnotsWolleyGenerator,
+    is_candidate as is_binary_candidate,
+    next_admissible_binary,
+)
 from lex_earliest_seqs.zoo.enots_wolley import EnotsWolleyGenerator, is_candidate
+from lex_earliest_seqs.zoo.forced_squarefree_enots_wolley import (
+    ForcedSquarefreeEnotsWolleyGenerator,
+    is_squarefree,
+)
 
 
 def _reference_enots_wolley(count: int) -> list[int]:
@@ -22,6 +31,52 @@ def _reference_enots_wolley(count: int) -> list[int]:
         used.add(candidate)
         while smallest_unused in used:
             smallest_unused += 1
+    return terms
+
+
+def _reference_binary_enots_wolley(count: int) -> list[int]:
+    if count <= 2:
+        return [1, 3][:count]
+
+    terms = [1, 3]
+    used = {1, 3}
+    smallest_unused = 2
+    while len(terms) < count:
+        candidate = smallest_unused
+        while candidate in used or not is_binary_candidate(
+            candidate, terms[-1], terms[-2]
+        ):
+            candidate += 1
+        terms.append(candidate)
+        used.add(candidate)
+        while smallest_unused in used:
+            smallest_unused += 1
+    return terms
+
+
+def _reference_forced_squarefree_enots_wolley(count: int) -> list[int]:
+    if count <= 2:
+        return [1, 2][:count]
+
+    terms = [1, 2]
+    used = {1, 2}
+    smallest_unused_squarefree = 3
+    while len(terms) < count:
+        candidate = smallest_unused_squarefree
+        while (
+            candidate in used
+            or not is_squarefree(candidate)
+            or not is_candidate(candidate, terms[-1], terms[-2])
+        ):
+            candidate += 1
+        terms.append(candidate)
+        used.add(candidate)
+
+        while (
+            smallest_unused_squarefree in used
+            or not is_squarefree(smallest_unused_squarefree)
+        ):
+            smallest_unused_squarefree += 1
     return terms
 
 
@@ -85,9 +140,39 @@ def test_binary_enots_wolley_reference_prefix():
     assert "binary-digits" in definition.projections
 
 
+def test_binary_successor_generator_matches_direct_rule():
+    generator = BinaryEnotsWolleyGenerator()
+    generator.extend_to(1_000)
+    assert generator.terms == _reference_binary_enots_wolley(1_000)
+
+
+def test_binary_successor_is_least_admissible_at_generated_states():
+    terms = _reference_binary_enots_wolley(200)
+    used: set[int] = set()
+    smallest_unused = 1
+
+    for index, value in enumerate(terms):
+        used.add(value)
+        while smallest_unused in used:
+            smallest_unused += 1
+        if index < 1 or index + 1 >= len(terms):
+            continue
+
+        successor = next_admissible_binary(
+            smallest_unused,
+            terms[index],
+            terms[index - 1],
+        )
+        brute_force = smallest_unused
+        while not is_binary_candidate(brute_force, terms[index], terms[index - 1]):
+            brute_force += 1
+        assert successor == brute_force
+
+
 def test_forced_squarefree_enots_wolley_reference_prefix():
     definition = registry.resolve("A399457")
     assert definition.oeis == "A399457"
+    assert definition.generator_version == 2
     assert registry.resolve("forced-squarefree-ew") is definition
 
     run = open_run(definition, use_cache=False)
@@ -115,3 +200,25 @@ def test_forced_squarefree_enots_wolley_reference_prefix():
         65,
     ]
     assert "prime-exponents" in definition.projections
+
+
+def test_squarefree_stream_generator_matches_direct_rule():
+    generator = ForcedSquarefreeEnotsWolleyGenerator()
+    generator.extend_to(500)
+    assert generator.terms == _reference_forced_squarefree_enots_wolley(500)
+
+
+def test_squarefree_stream_generator_pickle_resumes_without_radicals():
+    expected = _reference_forced_squarefree_enots_wolley(500)
+    generator = ForcedSquarefreeEnotsWolleyGenerator()
+    generator.extend_to(300)
+    assert generator.radicals is not None
+
+    restored = pickle.loads(pickle.dumps(generator))
+    assert restored.radicals is None
+    assert restored.terms == generator.terms
+    assert restored.used == generator.used
+    assert restored.smallest_unused_squarefree == generator.smallest_unused_squarefree
+
+    restored.extend_to(500)
+    assert restored.terms == expected
