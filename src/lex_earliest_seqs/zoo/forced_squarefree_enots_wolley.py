@@ -35,22 +35,28 @@ def _nonempty_subset_products(primes: tuple[int, ...]) -> list[int]:
 
 @dataclass
 class ForcedSquarefreeEnotsWolleyGenerator:
-    """Forced-squarefree EW generator enumerating admissible candidate streams.
+    """Forced-squarefree EW generator with history-aware candidate streams.
 
     For predecessor A and two-back term B, every admissible squarefree candidate
     has a unique factorization ``x*y``. ``x`` is a nonempty squarefree product of
     primes in P(A) - P(B), while ``y > 1`` is squarefree and coprime to rad(A*B).
-    Each possible ``x`` defines one increasing candidate stream. The generator
-    keeps the stream heads in a min-heap and advances only streams whose head is
-    already used, rather than scanning every intervening integer.
+    Each possible ``x`` defines one increasing candidate stream.
 
-    The radical table accelerates the squarefree/coprimality successor for ``y``.
-    It is derived state and is therefore omitted from persisted pickles.
+    ``cofactor_frontiers[x]`` remembers the least base-eligible cofactor that has
+    not already produced a used product ``x*y``. This frontier is independent of
+    the current A/B pair, so repeated appearances of the same ``x`` never rescan
+    an exhausted historical prefix. Current local coprimality restrictions are
+    imposed only after jumping to that persistent frontier.
+
+    The radical table accelerates squarefree/coprimality successors. It is
+    derived state and is therefore omitted from persisted pickles; the history
+    frontiers themselves are persisted because rebuilding them would discard the
+    main late-term acceleration.
     """
 
     terms: list[int] = field(default_factory=lambda: [1, 2])
     used: set[int] = field(default_factory=lambda: {1, 2})
-    smallest_unused_squarefree: int = 3
+    cofactor_frontiers: dict[int, int] = field(default_factory=dict)
     limit: int = _INITIAL_LIMIT
     radicals: list[int] | None = field(default=None, repr=False)
 
@@ -87,6 +93,27 @@ class ForcedSquarefreeEnotsWolleyGenerator:
                 return candidate
             candidate += 1
 
+    def _cofactor_frontier(self, shared_part: int) -> int:
+        """Return the least globally unused base cofactor for ``shared_part``.
+
+        The base stream for ``x`` consists of squarefree ``y > 1`` coprime to
+        ``x``. Once ``x*y`` has appeared, that cofactor can never win again under
+        any future local EW state, so the stored frontier may advance past it
+        permanently. Local exclusions from the current predecessor/two-back pair
+        are deliberately *not* folded into this persistent frontier.
+        """
+
+        outside_part = max(2, self.cofactor_frontiers.get(shared_part, 2))
+        while True:
+            outside_part = self._next_squarefree_coprime(
+                outside_part,
+                shared_part,
+            )
+            if shared_part * outside_part not in self.used:
+                self.cofactor_frontiers[shared_part] = outside_part
+                return outside_part
+            outside_part += 1
+
     def _next_candidate(self) -> int:
         previous = self.terms[-1]
         two_back = self.terms[-2]
@@ -103,12 +130,12 @@ class ForcedSquarefreeEnotsWolleyGenerator:
         heap: list[tuple[int, int, int]] = []
 
         for shared_part in _nonempty_subset_products(shared_primes):
-            lower_y = max(
-                2,
-                (self.smallest_unused_squarefree + shared_part - 1) // shared_part,
-            )
+            # First jump over the entire globally exhausted prefix for this x.
+            # Then impose today's stronger coprimality condition. A cofactor that
+            # is blocked only by the current A/B pair remains available to future
+            # states, so it does not advance the persistent frontier.
             outside_part = self._next_squarefree_coprime(
-                lower_y,
+                self._cofactor_frontier(shared_part),
                 forbidden_radical,
             )
             heappush(
@@ -132,18 +159,6 @@ class ForcedSquarefreeEnotsWolleyGenerator:
 
         raise RuntimeError("forced-squarefree EW candidate heap unexpectedly exhausted")
 
-    def _advance_smallest_unused_squarefree(self) -> None:
-        while True:
-            self._ensure_value(self.smallest_unused_squarefree)
-            assert self.radicals is not None
-            if (
-                self.smallest_unused_squarefree not in self.used
-                and self.radicals[self.smallest_unused_squarefree]
-                == self.smallest_unused_squarefree
-            ):
-                return
-            self.smallest_unused_squarefree += 1
-
     def extend_to(self, count: int) -> None:
         if count < 0:
             raise ValueError("count must be nonnegative")
@@ -159,7 +174,6 @@ class ForcedSquarefreeEnotsWolleyGenerator:
             candidate = self._next_candidate()
             self.terms.append(candidate)
             self.used.add(candidate)
-            self._advance_smallest_unused_squarefree()
 
 
 FORCED_SQUAREFREE_ENOTS_WOLLEY = SequenceDefinition[int](
@@ -172,7 +186,7 @@ FORCED_SQUAREFREE_ENOTS_WOLLEY = SequenceDefinition[int](
         "enots-wolley-forced-squarefree",
     ),
     generator_factory=ForcedSquarefreeEnotsWolleyGenerator,
-    generator_version=2,
+    generator_version=3,
     definition_version=1,
     offset=1,
     object_space=PositiveIntegers(),
