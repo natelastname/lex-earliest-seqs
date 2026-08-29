@@ -36,11 +36,19 @@ def next_admissible_binary(
 ) -> int:
     """Return the least binary-EW candidate at least ``lower_bound``.
 
-    This is a digit-DP successor rather than an integer scan. A valid candidate
-    must avoid every set bit of ``two_back``, use at least one set bit of
-    ``previous`` that is not forbidden by ``two_back``, and use at least one bit
-    absent from ``previous``. The DP has only the bit position and three Boolean
-    flags as state, so finding the successor takes O(log candidate) work.
+    No intervening integers are tested. If ``lower_bound`` itself is invalid,
+    the successor must have a highest bit where it differs from the lower bound;
+    at that pivot the lower-bound bit is 0 and the successor bit is 1. We scan
+    possible pivots from least to most significant. For a chosen pivot, all more
+    significant bits remain equal to the lower bound, while the less significant
+    suffix is filled minimally with whichever of the two required bit classes is
+    still missing:
+
+    * a bit shared with ``previous`` but absent from ``two_back``;
+    * a bit absent from both ``previous`` and ``two_back``.
+
+    The first feasible pivot therefore gives the least admissible successor in
+    O(log candidate) bit operations.
     """
 
     if lower_bound < 1:
@@ -54,78 +62,60 @@ def next_admissible_binary(
             "binary EW state has no bit available to share with the predecessor"
         )
 
-    # One bit beyond all inputs is always available as a new, un-forbidden bit,
-    # so this fixed width is enough whenever an admissible successor exists.
+    if is_candidate(lower_bound, previous, two_back):
+        return lower_bound
+
     width = max(
         lower_bound.bit_length(),
         previous.bit_length(),
         two_back.bit_length(),
     ) + 1
 
-    @cache
-    def feasible(
-        position: int,
-        already_greater: bool,
-        has_shared_bit: bool,
-        has_new_bit: bool,
-    ) -> bool:
-        if position < 0:
-            return has_shared_bit and has_new_bit
+    for pivot in range(width):
+        # The highest differing bit of a larger number must change 0 -> 1, and
+        # that bit may not be forbidden by the two-back support.
+        if (lower_bound >> pivot) & 1:
+            continue
+        if (two_back >> pivot) & 1:
+            continue
 
-        lower_bit = (lower_bound >> position) & 1
-        forbidden = (two_back >> position) & 1
-        previous_bit = (previous >> position) & 1
-        shared_bit = (shared_mask >> position) & 1
+        # Bits above the pivot stay exactly equal to lower_bound. Any forbidden
+        # set bit there makes this pivot impossible.
+        upper = lower_bound >> (pivot + 1)
+        if upper & (two_back >> (pivot + 1)):
+            continue
 
-        for bit in (0, 1):
-            if forbidden and bit:
+        has_shared = bool(upper & (shared_mask >> (pivot + 1))) or bool(
+            (shared_mask >> pivot) & 1
+        )
+        has_new = bool(upper & ~(previous >> (pivot + 1))) or not bool(
+            (previous >> pivot) & 1
+        )
+
+        lower_mask = (1 << pivot) - 1
+        suffix = 0
+
+        if not has_shared:
+            available_shared = shared_mask & lower_mask
+            if not available_shared:
                 continue
-            if not already_greater and bit < lower_bit:
+            suffix |= available_shared & -available_shared
+
+        if not has_new:
+            available_new = ~(previous | two_back) & lower_mask
+            if not available_new:
                 continue
+            suffix |= available_new & -available_new
 
-            next_greater = already_greater or bit > lower_bit
-            next_shared = has_shared_bit or bool(bit and shared_bit)
-            next_new = has_new_bit or bool(bit and not previous_bit)
-            if feasible(position - 1, next_greater, next_shared, next_new):
-                return True
-        return False
+        return (
+            (lower_bound >> (pivot + 1) << (pivot + 1))
+            | (1 << pivot)
+            | suffix
+        )
 
-    if not feasible(width - 1, False, False, False):
-        raise RuntimeError("binary EW successor DP found no admissible candidate")
-
-    result = 0
-    already_greater = False
-    has_shared_bit = False
-    has_new_bit = False
-
-    for position in range(width - 1, -1, -1):
-        lower_bit = (lower_bound >> position) & 1
-        forbidden = (two_back >> position) & 1
-        previous_bit = (previous >> position) & 1
-        shared_bit = (shared_mask >> position) & 1
-
-        for bit in (0, 1):
-            if forbidden and bit:
-                continue
-            if not already_greater and bit < lower_bit:
-                continue
-
-            next_greater = already_greater or bit > lower_bit
-            next_shared = has_shared_bit or bool(bit and shared_bit)
-            next_new = has_new_bit or bool(bit and not previous_bit)
-            if not feasible(position - 1, next_greater, next_shared, next_new):
-                continue
-
-            if bit:
-                result |= 1 << position
-            already_greater = next_greater
-            has_shared_bit = next_shared
-            has_new_bit = next_new
-            break
-        else:  # pragma: no cover - guarded by the feasibility pass above
-            raise RuntimeError("failed to reconstruct binary EW successor")
-
-    return result
+    # The extra top bit included in ``width`` is always a new, un-forbidden bit;
+    # with ``shared_mask != 0`` a feasible pivot must therefore exist.
+    raise RuntimeError("binary EW successor construction found no candidate")
 
 
 @dataclass
