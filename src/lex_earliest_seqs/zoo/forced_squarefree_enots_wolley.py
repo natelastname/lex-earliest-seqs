@@ -39,7 +39,7 @@ class ForcedSquarefreeEnotsWolleyGenerator:
 
     For predecessor A and two-back term B, every admissible squarefree candidate
     has a unique factorization ``x*y``. ``x`` is a nonempty squarefree product of
-    primes in P(A) \\ P(B), while ``y > 1`` is squarefree and coprime to rad(A*B).
+    primes in P(A) - P(B), while ``y > 1`` is squarefree and coprime to rad(A*B).
     Each possible ``x`` defines one increasing candidate stream. The generator
     keeps the stream heads in a min-heap and advances only streams whose head is
     already used, rather than scanning every intervening integer.
