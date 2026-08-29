@@ -64,9 +64,11 @@ introduce a new prime. A338833 uses an exact O(log n) bit successor, jumping
 directly between admissible candidates rather than scanning intervening
 integers. A399457 expresses each admissible squarefree candidate uniquely as
 `x*y`, with `x` a nonempty product of eligible predecessor primes, and merges
-the resulting monotone candidate streams with a min-heap. Large radical tables
-are derived state and are omitted from pickles, then rebuilt lazily only when
-needed.
+the resulting monotone candidate streams with a min-heap. For each recurring
+`x`, A399457 also persists the least base-eligible cofactor not already consumed
+by a previous term, so late runs jump over historically exhausted stream
+prefixes rather than rediscovering them. Large radical tables are derived state
+and are omitted from pickles, then rebuilt lazily only when needed.
 
 ## Defining a sequence
 
