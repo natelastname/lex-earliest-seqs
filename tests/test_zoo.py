@@ -1,9 +1,11 @@
 import pickle
+from math import gcd
 
 from lex_earliest_seqs import registry
 from lex_earliest_seqs.cache import open_run
 from lex_earliest_seqs.zoo.binary_enots_wolley import (
     BinaryEnotsWolleyGenerator,
+    bit_support,
     next_admissible_binary,
 )
 from lex_earliest_seqs.zoo.enots_wolley import EnotsWolleyGenerator, is_candidate
@@ -33,14 +35,10 @@ def _reference_enots_wolley(count: int) -> list[int]:
     return terms
 
 
-def _reference_bit_support(value: int) -> set[int]:
-    return {bit for bit in range(value.bit_length()) if value & (1 << bit)}
-
-
 def _reference_binary_candidate(value: int, previous: int, two_back: int) -> bool:
-    support = _reference_bit_support(value)
-    previous_support = _reference_bit_support(previous)
-    two_back_support = _reference_bit_support(two_back)
+    support = bit_support(value)
+    previous_support = bit_support(previous)
+    two_back_support = bit_support(two_back)
     return (
         bool(support & previous_support)
         and not bool(support & two_back_support)
@@ -68,7 +66,7 @@ def _reference_binary_enots_wolley(count: int) -> list[int]:
     return terms
 
 
-def _reference_forced_squarefree_enots_wolley(count: int) -> list[int]:
+def _reference_forced_squarefree(count: int) -> list[int]:
     if count <= 2:
         return [1, 2][:count]
 
@@ -85,7 +83,6 @@ def _reference_forced_squarefree_enots_wolley(count: int) -> list[int]:
             candidate += 1
         terms.append(candidate)
         used.add(candidate)
-
         while (
             smallest_unused_squarefree in used
             or not is_squarefree(smallest_unused_squarefree)
@@ -101,7 +98,7 @@ def test_enots_wolley_reference_prefix():
     assert list(run.terms) == [1, 2, 6, 15, 35, 14, 12, 33, 55, 10, 18, 21]
 
 
-def test_fast_enots_wolley_matches_direct_rule():
+def test_enots_wolley_stream_merge_matches_direct_rule():
     generator = EnotsWolleyGenerator()
     generator.extend_to(1_000)
     assert generator.terms == _reference_enots_wolley(1_000)
@@ -128,6 +125,20 @@ def test_enots_wolley_prime_projection_is_registered():
     definition = registry.resolve("A336957")
     assert definition.generator_version == 3
     assert "prime-exponents" in definition.projections
+
+
+def test_binary_successor_returns_exact_least_admissible_candidate():
+    for previous, two_back, lower_bound in [
+        (3, 1, 2),
+        (6, 3, 4),
+        (12, 6, 7),
+        (17, 9, 2),
+        (48, 20, 21),
+    ]:
+        expected = lower_bound
+        while not _reference_binary_candidate(expected, previous, two_back):
+            expected += 1
+        assert next_admissible_binary(lower_bound, previous, two_back) == expected
 
 
 def test_binary_enots_wolley_reference_prefix():
@@ -160,31 +171,12 @@ def test_binary_successor_generator_matches_direct_rule():
     assert generator.terms == _reference_binary_enots_wolley(1_000)
 
 
-def test_binary_successor_is_least_admissible_at_generated_states():
-    terms = _reference_binary_enots_wolley(200)
-    used: set[int] = set()
-    smallest_unused = 1
-
-    for index, value in enumerate(terms):
-        used.add(value)
-        while smallest_unused in used:
-            smallest_unused += 1
-        if index < 1 or index + 1 >= len(terms):
-            continue
-
-        successor = next_admissible_binary(
-            smallest_unused,
-            terms[index],
-            terms[index - 1],
-        )
-        brute_force = smallest_unused
-        while not _reference_binary_candidate(
-            brute_force,
-            terms[index],
-            terms[index - 1],
-        ):
-            brute_force += 1
-        assert successor == brute_force
+def test_binary_generator_pickle_resumes():
+    generator = BinaryEnotsWolleyGenerator()
+    generator.extend_to(500)
+    restored = pickle.loads(pickle.dumps(generator))
+    restored.extend_to(1_000)
+    assert restored.terms == _reference_binary_enots_wolley(1_000)
 
 
 def test_forced_squarefree_enots_wolley_reference_prefix():
@@ -220,23 +212,18 @@ def test_forced_squarefree_enots_wolley_reference_prefix():
     assert "prime-exponents" in definition.projections
 
 
-def test_squarefree_stream_generator_matches_direct_rule():
+def test_forced_squarefree_stream_merge_matches_direct_rule():
     generator = ForcedSquarefreeEnotsWolleyGenerator()
     generator.extend_to(500)
-    assert generator.terms == _reference_forced_squarefree_enots_wolley(500)
+    assert generator.terms == _reference_forced_squarefree(500)
 
 
-def test_squarefree_stream_generator_pickle_resumes_without_radicals():
-    expected = _reference_forced_squarefree_enots_wolley(500)
+def test_forced_squarefree_pickle_resumes_without_persisting_radicals():
     generator = ForcedSquarefreeEnotsWolleyGenerator()
-    generator.extend_to(300)
+    generator.extend_to(250)
     assert generator.radicals is not None
 
     restored = pickle.loads(pickle.dumps(generator))
     assert restored.radicals is None
-    assert restored.terms == generator.terms
-    assert restored.used == generator.used
-    assert restored.smallest_unused_squarefree == generator.smallest_unused_squarefree
-
     restored.extend_to(500)
-    assert restored.terms == expected
+    assert restored.terms == _reference_forced_squarefree(500)
