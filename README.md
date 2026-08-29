@@ -57,13 +57,16 @@ print(render_text(table))
 
 The initial zoo contains Enots--Wolley (OEIS A336957), its binary-support
 analogue (OEIS A338833), and forced-squarefree Enots--Wolley (OEIS A399457).
-A336957 uses a radical table to accelerate candidate predicates. A338833 goes
-further and uses an exact O(log n) bit successor, jumping directly between
-admissible candidates rather than scanning intervening integers. A399457
-expresses each admissible squarefree candidate uniquely as `x*y`, with `x` a
-nonempty product of eligible predecessor primes, and merges the resulting
-monotone candidate streams with a min-heap. Large radical tables are derived
-state and are omitted from pickles, then rebuilt lazily only when needed.
+A336957 partitions all integers that already share with the predecessor and
+avoid the two-back term into disjoint prime-indexed streams, then merges their
+heads with a min-heap; the radical table only filters values that fail to
+introduce a new prime. A338833 uses an exact O(log n) bit successor, jumping
+directly between admissible candidates rather than scanning intervening
+integers. A399457 expresses each admissible squarefree candidate uniquely as
+`x*y`, with `x` a nonempty product of eligible predecessor primes, and merges
+the resulting monotone candidate streams with a min-heap. Large radical tables
+are derived state and are omitted from pickles, then rebuilt lazily only when
+needed.
 
 ## Defining a sequence
 
