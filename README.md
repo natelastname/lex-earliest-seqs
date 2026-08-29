@@ -91,7 +91,8 @@ The built-ins use sequence-specific candidate enumeration rather than relying
 on a generic brute-force scanner:
 
 - **A336957** partitions locally eligible integers into disjoint prime-indexed
-  streams and merges them with a heap;
+  streams, merges them with a heap, and persists lazy per-prime multiplier
+  successor maps so recurring streams jump over products already used earlier;
 - **A338833** uses an exact bit successor to jump directly between locally
   admissible binary candidates;
 - **A399457** merges squarefree candidate streams and persists per-stream

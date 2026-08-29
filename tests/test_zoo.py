@@ -97,27 +97,55 @@ def test_enots_wolley_reference_prefix():
     assert list(run.terms) == [1, 2, 6, 15, 35, 14, 12, 33, 55, 10, 18, 21]
 
 
-def test_enots_wolley_stream_merge_matches_direct_rule():
+def test_enots_wolley_history_successors_match_direct_rule():
     generator = EnotsWolleyGenerator()
-    generator.extend_to(1_000)
-    assert generator.terms == _reference_enots_wolley(1_000)
+    generator.extend_to(2_000)
+    assert generator.terms == _reference_enots_wolley(2_000)
     assert generator.used == set(generator.terms)
+    assert generator.unused_multiplier_successors
 
 
-def test_fast_enots_wolley_pickle_resumes_without_persisting_radicals():
+def test_enots_wolley_successor_deletes_used_prime_multipliers():
+    generator = EnotsWolleyGenerator()
+    generator.used.update({4, 6, 8})
+
+    assert generator._next_unused_multiplier(2, 1) == 5
+    assert generator._find_multiplier_successor(2, 1) == 5
+    assert generator.unused_multiplier_successors[2]
+
+
+def test_enots_wolley_pickle_resumes_with_successors_without_radicals():
     generator = EnotsWolleyGenerator()
     generator.extend_to(500)
     assert generator.radicals is not None
+    assert generator.unused_multiplier_successors
+    successors = {
+        prime: dict(parents)
+        for prime, parents in generator.unused_multiplier_successors.items()
+    }
 
     restored = pickle.loads(pickle.dumps(generator))
     assert restored.radicals is None
     assert restored.terms == generator.terms
     assert restored.used == generator.used
-    assert isinstance(restored.used, set)
+    assert restored.unused_multiplier_successors == successors
     assert restored.smallest_unused == generator.smallest_unused
 
     restored.extend_to(1_000)
     assert restored.terms == _reference_enots_wolley(1_000)
+
+
+def test_enots_wolley_old_version3_pickle_lazily_adds_successor_maps():
+    generator = EnotsWolleyGenerator()
+    generator.extend_to(100)
+    del generator.unused_multiplier_successors
+
+    restored = pickle.loads(pickle.dumps(generator))
+    assert not hasattr(restored, "unused_multiplier_successors")
+    restored.extend_to(500)
+
+    assert restored.unused_multiplier_successors
+    assert restored.terms == _reference_enots_wolley(500)
 
 
 def test_enots_wolley_prime_projection_is_registered():
