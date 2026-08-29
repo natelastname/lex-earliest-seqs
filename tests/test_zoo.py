@@ -181,7 +181,7 @@ def test_binary_generator_pickle_resumes():
 def test_forced_squarefree_enots_wolley_reference_prefix():
     definition = registry.resolve("A399457")
     assert definition.oeis == "A399457"
-    assert definition.generator_version == 2
+    assert definition.generator_version == 3
     assert registry.resolve("forced-squarefree-ew") is definition
 
     run = open_run(definition, use_cache=False)
@@ -211,18 +211,35 @@ def test_forced_squarefree_enots_wolley_reference_prefix():
     assert "prime-exponents" in definition.projections
 
 
-def test_forced_squarefree_stream_merge_matches_direct_rule():
+def test_forced_squarefree_history_frontiers_match_direct_rule():
+    generator = ForcedSquarefreeEnotsWolleyGenerator()
+    generator.extend_to(1_000)
+    assert generator.terms == _reference_forced_squarefree(1_000)
+    assert generator.cofactor_frontiers
+    assert generator.cofactor_frontiers[2] > 2
+
+
+def test_forced_squarefree_frontier_advances_past_used_products():
     generator = ForcedSquarefreeEnotsWolleyGenerator()
     generator.extend_to(500)
-    assert generator.terms == _reference_forced_squarefree(500)
+
+    before = generator._cofactor_frontier(2)
+    generator.used.add(2 * before)
+    after = generator._cofactor_frontier(2)
+
+    assert after > before
+    assert 2 * after not in generator.used
 
 
-def test_forced_squarefree_pickle_resumes_without_persisting_radicals():
+def test_forced_squarefree_pickle_resumes_with_frontiers_without_radicals():
     generator = ForcedSquarefreeEnotsWolleyGenerator()
-    generator.extend_to(250)
+    generator.extend_to(500)
     assert generator.radicals is not None
+    assert generator.cofactor_frontiers
+    frontiers = dict(generator.cofactor_frontiers)
 
     restored = pickle.loads(pickle.dumps(generator))
     assert restored.radicals is None
-    restored.extend_to(500)
-    assert restored.terms == _reference_forced_squarefree(500)
+    assert restored.cofactor_frontiers == frontiers
+    restored.extend_to(1_000)
+    assert restored.terms == _reference_forced_squarefree(1_000)
