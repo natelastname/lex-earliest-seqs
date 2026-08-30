@@ -10,7 +10,7 @@ from .squarefree_semiprime_enots_wolley import SQUAREFREE_SEMIPRIME_ENOTS_WOLLEY
 
 # X000000 is the squarefree omega={2} member and has its own specialized
 # closed-form generator. The remaining five requested members use the generic
-# policy-driven generator for now.
+# optimized persistent-stream generator.
 
 X000001_POLICY = EWFactorPolicy(
     allowed_omega=frozenset({2}),
@@ -48,6 +48,7 @@ BIPRIMARY_ENOTS_WOLLEY = make_factor_restricted_enots_wolley_definition(
         "biprimary-enots-wolley",
         "omega-2-ew",
     ),
+    generator_version=2,
     description=(
         "Lexicographically earliest sequence starting 1, 2 and obeying the "
         "Enots--Wolley rule while requiring every later term to have exactly "
@@ -66,6 +67,7 @@ TRIPRIMARY_ENOTS_WOLLEY = make_factor_restricted_enots_wolley_definition(
         "triprimary-enots-wolley",
         "omega-2-3-ew",
     ),
+    generator_version=2,
     description=(
         "Lexicographically earliest sequence starting 1, 2 and obeying the "
         "Enots--Wolley rule while requiring every later term to have either "
@@ -84,6 +86,7 @@ SQUAREFREE_TRIPRIMARY_ENOTS_WOLLEY = make_factor_restricted_enots_wolley_definit
         "squarefree-triprimary-enots-wolley",
         "squarefree-omega-2-3-ew",
     ),
+    generator_version=2,
     description=(
         "Lexicographically earliest sequence starting 1, 2 and obeying the "
         "Enots--Wolley rule while requiring every later term to be squarefree "
@@ -101,6 +104,7 @@ EXACT_TRIPRIMARY_ENOTS_WOLLEY = make_factor_restricted_enots_wolley_definition(
         "exact-triprimary-enots-wolley",
         "omega-3-ew",
     ),
+    generator_version=2,
     description=(
         "Lexicographically earliest sequence starting 1, 2 and obeying the "
         "Enots--Wolley rule while requiring every later term to have exactly "
@@ -120,6 +124,7 @@ SQUAREFREE_EXACT_TRIPRIMARY_ENOTS_WOLLEY = (
             "squarefree-exact-triprimary-enots-wolley",
             "squarefree-omega-3-ew",
         ),
+        generator_version=2,
         description=(
             "Lexicographically earliest sequence starting 1, 2 and obeying the "
             "Enots--Wolley rule while requiring every later term to be "
