@@ -2,6 +2,7 @@ import pytest
 
 from lex_earliest_seqs.zoo.factor_restricted_enots_wolley import (
     EWFactorPolicy,
+    FactorRestrictedEnotsWolleyDefinition,
     FactorRestrictedEnotsWolleyGenerator,
     big_omega,
     make_factor_restricted_enots_wolley_definition,
@@ -43,7 +44,7 @@ def test_squarefree_is_independent_of_allowed_omega():
     assert not squarefree_only.allows(12)
 
 
-def test_definition_factory_uses_generic_generator_by_default():
+def test_definition_factory_retains_policy_and_uses_generic_generator_by_default():
     policy = EWFactorPolicy(
         allowed_omega=frozenset({2, 3}),
         squarefree=False,
@@ -54,7 +55,23 @@ def test_definition_factory_uses_generic_generator_by_default():
         policy=policy,
     )
 
+    assert isinstance(definition, FactorRestrictedEnotsWolleyDefinition)
+    assert definition.factor_policy == policy
     generator = definition.generator_factory()
     assert isinstance(generator, FactorRestrictedEnotsWolleyGenerator)
     assert generator.policy == policy
     assert "prime-exponents" in definition.projections
+
+
+def test_omega_two_ew_is_unchanged_by_squarefree_flag():
+    multiplicity_allowed = FactorRestrictedEnotsWolleyGenerator(
+        policy=EWFactorPolicy(frozenset({2}), squarefree=False)
+    )
+    squarefree_only = FactorRestrictedEnotsWolleyGenerator(
+        policy=EWFactorPolicy(frozenset({2}), squarefree=True)
+    )
+
+    multiplicity_allowed.extend_to(80)
+    squarefree_only.extend_to(80)
+
+    assert multiplicity_allowed.terms == squarefree_only.terms
