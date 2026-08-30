@@ -1,6 +1,7 @@
 from lex_earliest_seqs import registry
 from lex_earliest_seqs.cache import open_run
 from lex_earliest_seqs.zoo.factor_restricted_enots_wolley import (
+    FactorRestrictedEnotsWolleyDefinition,
     FactorRestrictedEnotsWolleyGenerator,
 )
 from lex_earliest_seqs.zoo.squarefree_semiprime_enots_wolley import (
@@ -12,9 +13,11 @@ from lex_earliest_seqs.zoo.squarefree_semiprime_enots_wolley import (
 
 def test_squarefree_semiprime_enots_wolley_registry_and_prefix():
     definition = registry.resolve("X000000")
+    assert isinstance(definition, FactorRestrictedEnotsWolleyDefinition)
     assert definition.id == "X000000"
     assert definition.oeis is None
     assert definition.generator_version == 2
+    assert definition.factor_policy == X000000_POLICY
     assert registry.resolve("semiprime-ew") is definition
     assert registry.resolve("squarefree-semiprime-enots-wolley") is definition
     assert "prime-exponents" in definition.projections
