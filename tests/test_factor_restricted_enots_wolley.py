@@ -4,6 +4,7 @@ from lex_earliest_seqs.zoo.factor_restricted_enots_wolley import (
     EWFactorPolicy,
     FactorRestrictedEnotsWolleyDefinition,
     FactorRestrictedEnotsWolleyGenerator,
+    ReferenceFactorRestrictedEnotsWolleyGenerator,
     big_omega,
     make_factor_restricted_enots_wolley_definition,
     omega,
@@ -54,7 +55,7 @@ def test_squarefree_is_independent_of_distinct_prime_count():
     assert squarefree_only.allows(6)
 
 
-def test_definition_factory_retains_policy_and_uses_generic_generator_by_default():
+def test_definition_factory_retains_policy_and_uses_optimized_generator_by_default():
     policy = EWFactorPolicy(
         allowed_omega=frozenset({2, 3}),
         squarefree=False,
@@ -73,6 +74,13 @@ def test_definition_factory_retains_policy_and_uses_generic_generator_by_default
     assert "prime-exponents" in definition.projections
 
 
+def test_reference_generator_remains_available_as_independent_oracle():
+    policy = EWFactorPolicy(frozenset({2}), squarefree=False)
+    reference = ReferenceFactorRestrictedEnotsWolleyGenerator(policy=policy)
+    reference.extend_to(10)
+    assert reference.terms == [1, 2, 6, 15, 35, 14, 12, 33, 55, 10]
+
+
 def test_biprimary_multiplicity_allowed_differs_from_squarefree_variant():
     multiplicity_allowed = FactorRestrictedEnotsWolleyGenerator(
         policy=EWFactorPolicy(frozenset({2}), squarefree=False)
@@ -86,3 +94,35 @@ def test_biprimary_multiplicity_allowed_differs_from_squarefree_variant():
 
     assert multiplicity_allowed.terms == [1, 2, 6, 15, 35, 14, 12]
     assert squarefree_only.terms == [1, 2, 6, 15, 35, 14, 22]
+
+
+def test_persistent_successor_map_deletes_policy_failures_and_used_products():
+    generator = FactorRestrictedEnotsWolleyGenerator(
+        policy=EWFactorPolicy(frozenset({2}), squarefree=True)
+    )
+
+    # For stream prime 2, multipliers 1 and 2 produce 2 and 4, which have
+    # omega=1. The first globally policy-eligible product is 2*3=6.
+    assert generator._next_persistently_eligible_multiplier(2, 1) == 3
+    parents = generator.multiplier_successors[2]
+    assert 1 in parents
+    assert 2 in parents
+
+    # Once 6 is globally used, multiplier 3 is permanently deletable as well;
+    # multiplier 4 produces nonsquarefree 8, so the next head is 2*5=10.
+    generator.used.add(6)
+    assert generator._next_persistently_eligible_multiplier(2, 1) == 5
+    assert 3 in parents
+    assert 4 in parents
+
+
+def test_successor_find_path_compresses_deleted_multiplier_chain():
+    generator = FactorRestrictedEnotsWolleyGenerator(
+        policy=EWFactorPolicy(frozenset({2}), squarefree=False)
+    )
+    generator.multiplier_successors[2] = {1: 2, 2: 3, 3: 7}
+
+    assert generator._find_multiplier_successor(2, 1) == 7
+    assert generator.multiplier_successors[2][1] == 7
+    assert generator.multiplier_successors[2][2] == 7
+    assert generator.multiplier_successors[2][3] == 7
