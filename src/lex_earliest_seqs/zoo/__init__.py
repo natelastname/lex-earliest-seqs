@@ -11,6 +11,7 @@ from .factor_restricted_enots_wolley import (
     FactorRestrictedEnotsWolleyGenerator,
     big_omega,
     make_factor_restricted_enots_wolley_definition,
+    omega,
 )
 from .forced_squarefree_enots_wolley import (
     FORCED_SQUAREFREE_ENOTS_WOLLEY,
@@ -37,6 +38,7 @@ __all__ = [
     "X000000_POLICY",
     "big_omega",
     "make_factor_restricted_enots_wolley_definition",
+    "omega",
     "register_builtins",
 ]
 
