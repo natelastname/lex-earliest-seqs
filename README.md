@@ -162,18 +162,38 @@ lex-earliest-seqs compute ew 10000 --no-progress
 Cache-loading and computation progress are written to **stderr**, so sequence
 or table data on stdout remains clean for piping.
 
-### Print terms
+### Print or export terms
 
 ```console
 lex-earliest-seqs terms ew 20
 lex-earliest-seqs terms A399457 20
 ```
 
-The output contains mathematical subscript and value, separated by a tab.
-Slices use a zero-based sequence position:
+Without an output file, the output contains mathematical subscript and value,
+separated by a tab. Slices use a zero-based sequence position:
 
 ```console
 lex-earliest-seqs terms ew 25 --start-position 1000
+```
+
+Terms can also be exported as CSV or Parquet:
+
+```console
+lex-earliest-seqs terms ew 1000000 -o ew.parquet --format parquet
+lex-earliest-seqs terms ew 1000000 -o ew.csv --format csv
+```
+
+`--output` is equivalent to `-o`. When `--format` is omitted, `.csv`,
+`.parquet`, and `.pq` filename suffixes select the corresponding format. Both
+file formats use stable `subscript` and `value` columns. Parquet output is
+written in bounded batches with Zstd compression, so the export step does not
+construct a second full sequence-sized record list in memory.
+
+For example, an integer-valued sequence export can be passed directly to
+`massive-scatter`:
+
+```console
+massive-scatter build ew.parquet ew.msplot --x subscript --y value
 ```
 
 The same `--cache-dir`, `--refresh`, `--no-cache`, and `--no-progress` controls
