@@ -19,6 +19,7 @@ from .incidence import (
     render_markdown,
     render_text,
 )
+from .term_export import write_terms_csv, write_terms_parquet
 
 NonNegativeInt = Annotated[
     int,
@@ -26,6 +27,11 @@ NonNegativeInt = Annotated[
 ]
 ColumnChoice = Literal["used", "through-largest"]
 OutputFormat = Literal["text", "markdown", "json", "csv", "tsv"]
+TermsOutputFormat = Literal["csv", "parquet"]
+TermsOutputPath = Annotated[
+    Path | None,
+    Parameter(name=("--output", "-o")),
+]
 
 app = App(
     name="lex-earliest-seqs",
@@ -127,6 +133,28 @@ def _projection(definition, name: str | None):
         ) from exc
 
 
+def _terms_output_format(
+    output: Path | None,
+    requested: TermsOutputFormat | None,
+) -> TermsOutputFormat | None:
+    if output is None:
+        if requested is not None:
+            raise SystemExit("--format requires --output/-o for the terms command")
+        return None
+    if requested is not None:
+        return requested
+
+    suffix = output.suffix.lower()
+    if suffix == ".csv":
+        return "csv"
+    if suffix in {".parquet", ".pq"}:
+        return "parquet"
+    raise SystemExit(
+        "cannot infer term output format from the filename; "
+        "use --format csv or --format parquet"
+    )
+
+
 @app.command(name="list")
 def list_sequences() -> None:
     """List built-in sequences."""
@@ -208,21 +236,28 @@ def terms(
     count: NonNegativeInt,
     *,
     start_position: NonNegativeInt = 0,
+    output: TermsOutputPath = None,
+    format: TermsOutputFormat | None = None,
     cache_dir: Path | None = None,
     refresh: bool = False,
     cache: bool = True,
     progress: bool = True,
 ) -> None:
-    """Print a sequence slice.
+    """Print or export a sequence slice.
 
     Parameters
     ----------
     sequence
         Sequence ID, OEIS number, or registered alias.
     count
-        Number of terms to print.
+        Number of terms to print or export.
     start_position
         Zero-based sequence position at which to start.
+    output
+        Write terms to this file instead of stdout. ``-o`` is an alias.
+    format
+        File format: ``csv`` or ``parquet``. When omitted, infer it from the
+        output filename extension.
     cache_dir
         Override the pickle cache directory.
     refresh
@@ -234,6 +269,7 @@ def terms(
         suppress it.
     """
 
+    selected_format = _terms_output_format(output, format)
     run = _open(
         sequence,
         cache_dir=cache_dir,
@@ -243,8 +279,15 @@ def terms(
     )
     stop = start_position + count
     _ensure(run, stop, progress=progress)
-    for record in run.records(start_position, stop):
-        print(f"{record.subscript}\t{record.value}")
+
+    if output is None:
+        for record in run.records(start_position, stop):
+            print(f"{record.subscript}\t{record.value}")
+    elif selected_format == "csv":
+        write_terms_csv(run, start_position, stop, output)
+    else:
+        assert selected_format == "parquet"
+        write_terms_parquet(run, start_position, stop, output)
 
 
 @app.command
