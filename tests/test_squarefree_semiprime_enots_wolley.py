@@ -1,38 +1,29 @@
 from lex_earliest_seqs import registry
 from lex_earliest_seqs.cache import open_run
-from lex_earliest_seqs.zoo.enots_wolley import is_candidate
+from lex_earliest_seqs.zoo.factor_restricted_enots_wolley import (
+    FactorRestrictedEnotsWolleyGenerator,
+)
 from lex_earliest_seqs.zoo.squarefree_semiprime_enots_wolley import (
+    X000000_POLICY,
     SquarefreeSemiprimeEnotsWolleyGenerator,
     is_squarefree_semiprime,
 )
-
-
-def _reference_squarefree_semiprime_enots_wolley(count: int) -> list[int]:
-    if count <= 2:
-        return [1, 2][:count]
-
-    terms = [1, 2]
-    used = {1, 2}
-    while len(terms) < count:
-        candidate = 6
-        while (
-            candidate in used
-            or not is_squarefree_semiprime(candidate)
-            or not is_candidate(candidate, terms[-1], terms[-2])
-        ):
-            candidate += 1
-        terms.append(candidate)
-        used.add(candidate)
-    return terms
 
 
 def test_squarefree_semiprime_enots_wolley_registry_and_prefix():
     definition = registry.resolve("X000000")
     assert definition.id == "X000000"
     assert definition.oeis is None
+    assert definition.generator_version == 2
     assert registry.resolve("semiprime-ew") is definition
     assert registry.resolve("squarefree-semiprime-enots-wolley") is definition
     assert "prime-exponents" in definition.projections
+
+    generator = definition.generator_factory()
+    assert isinstance(generator, SquarefreeSemiprimeEnotsWolleyGenerator)
+    assert generator.policy == X000000_POLICY
+    assert X000000_POLICY.allowed_omega == frozenset({2})
+    assert X000000_POLICY.squarefree
 
     run = open_run(definition, use_cache=False)
     run.ensure(35)
@@ -75,7 +66,18 @@ def test_squarefree_semiprime_enots_wolley_registry_and_prefix():
     ]
 
 
-def test_closed_form_generator_matches_direct_greedy_rule():
-    generator = SquarefreeSemiprimeEnotsWolleyGenerator()
-    generator.extend_to(80)
-    assert generator.terms == _reference_squarefree_semiprime_enots_wolley(80)
+def test_x000000_closed_form_matches_generic_factor_restricted_generator():
+    optimized = SquarefreeSemiprimeEnotsWolleyGenerator()
+    reference = FactorRestrictedEnotsWolleyGenerator(policy=X000000_POLICY)
+
+    optimized.extend_to(80)
+    reference.extend_to(80)
+
+    assert optimized.terms == reference.terms
+
+
+def test_squarefree_semiprime_predicate_is_policy_backed():
+    assert is_squarefree_semiprime(6)
+    assert is_squarefree_semiprime(35)
+    assert not is_squarefree_semiprime(4)
+    assert not is_squarefree_semiprime(12)
