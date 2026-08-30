@@ -25,7 +25,7 @@ class EWFactorPolicy:
     """Finite multiplicative-degree restriction for an EW-type sequence.
 
     ``allowed_omega`` is a finite nonempty set of allowed values of the
-    big-Omega function Ω(n), so multiplicity is counted.  ``squarefree`` adds
+    big-Omega function Ω(n), so multiplicity is counted. ``squarefree`` adds
     the independent requirement that every prime exponent be at most one.
 
     The policy applies to generated terms after the sequence's initial seed;
@@ -56,13 +56,25 @@ class EWFactorPolicy:
         return not self.squarefree or all(exponent == 1 for _, exponent in factors)
 
 
+@dataclass(frozen=True)
+class FactorRestrictedEnotsWolleyDefinition(SequenceDefinition[int]):
+    """Sequence definition carrying its finite-Ω mathematical policy."""
+
+    factor_policy: EWFactorPolicy | None = None
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.factor_policy is None:
+            raise ValueError("factor_policy must be provided")
+
+
 @dataclass
 class FactorRestrictedEnotsWolleyGenerator:
     """Correct generic generator for a finite-Ω EW restriction.
 
-    This is deliberately a simple reference/fallback implementation.  It scans
+    This is deliberately a simple reference/fallback implementation. It scans
     admissible positive integers in numeric order at each step and applies the
-    ordinary EW adjacency rule plus ``policy``.  Family members with exploitable
+    ordinary EW adjacency rule plus ``policy``. Family members with exploitable
     structure may provide specialized generators while retaining the same
     ``EWFactorPolicy``.
     """
@@ -111,11 +123,11 @@ def make_factor_restricted_enots_wolley_definition(
     generator_version: int = 1,
     definition_version: int = 1,
     description: str = "",
-) -> SequenceDefinition[int]:
+) -> FactorRestrictedEnotsWolleyDefinition:
     """Build metadata for one member of the finite-Ω EW family.
 
     When no specialized ``generator_factory`` is supplied, the generic direct
-    generator is used.  Supplying an optimized generator changes only the
+    generator is used. Supplying an optimized generator changes only the
     implementation; ``policy`` remains the mathematical restriction defining
     the family member.
     """
@@ -132,7 +144,7 @@ def make_factor_restricted_enots_wolley_definition(
             f"Enots--Wolley rule with Ω(n) in {{{degrees}}}{squarefree}."
         )
 
-    return SequenceDefinition[int](
+    return FactorRestrictedEnotsWolleyDefinition(
         id=id,
         oeis=oeis,
         name=name,
@@ -144,4 +156,5 @@ def make_factor_restricted_enots_wolley_definition(
         object_space=PositiveIntegers(),
         projections={"prime-exponents": prime_exponent_projection()},
         description=description,
+        factor_policy=policy,
     )
