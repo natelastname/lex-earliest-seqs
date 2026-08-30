@@ -1,4 +1,4 @@
-"""Squarefree-semiprime Enots--Wolley sequence (non-OEIS ID X000000)."""
+"""Squarefree-semiprime Enots--Wolley sequence (local ID X000000)."""
 
 from __future__ import annotations
 
@@ -113,12 +113,13 @@ class SquarefreeSemiprimeEnotsWolleyGenerator:
 
 
 SQUAREFREE_SEMIPRIME_ENOTS_WOLLEY = SequenceDefinition[int](
-    id="squarefree-semiprime-enots-wolley",
-    oeis="X000000",
+    id="X000000",
+    oeis=None,
     name="Squarefree-semiprime Enots--Wolley",
     aliases=(
         "semiprime-ew",
         "squarefree-semiprime-ew",
+        "squarefree-semiprime-enots-wolley",
         "enots-wolley-squarefree-semiprime",
     ),
     generator_factory=SquarefreeSemiprimeEnotsWolleyGenerator,
