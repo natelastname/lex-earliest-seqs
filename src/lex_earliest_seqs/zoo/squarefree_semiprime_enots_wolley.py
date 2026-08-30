@@ -9,13 +9,13 @@ from .factor_restricted_enots_wolley import (
     make_factor_restricted_enots_wolley_definition,
 )
 
-# X000000 is the Ω=2, squarefree member of the finite-Ω EW family.
+# X000000 is the omega=2, squarefree member of the finite-omega EW family.
 X000000_POLICY = EWFactorPolicy(
     allowed_omega=frozenset({2}),
     squarefree=True,
 )
 
-# Direct greedy computation gives this finite transient.  A proved two-hub
+# Direct greedy computation gives this finite transient. A proved two-hub
 # induction takes over afterward: for every k >= 10, the terms at indices
 # 2k+5 and 2k+6 are 2*p_k and 3*p_k, with their order alternating with k.
 _PROVED_PREFIX = (
@@ -57,7 +57,7 @@ def is_squarefree_semiprime(value: int) -> bool:
 class SquarefreeSemiprimeEnotsWolleyGenerator:
     """Optimized generator for X000000.
 
-    The mathematical restriction is ``X000000_POLICY``.  The generic
+    The mathematical restriction is ``X000000_POLICY``. The generic
     ``FactorRestrictedEnotsWolleyGenerator`` can generate the same sequence
     directly; this implementation instead uses the proved closed form after
     the 24-term greedy transient.
@@ -133,7 +133,7 @@ SQUAREFREE_SEMIPRIME_ENOTS_WOLLEY = make_factor_restricted_enots_wolley_definiti
     definition_version=1,
     description=(
         "Lexicographically earliest sequence starting 1, 2 and obeying the "
-        "Enots--Wolley rule while requiring every later term to have Ω(n)=2 "
-        "and be squarefree."
+        "Enots--Wolley rule while requiring every later term to have exactly "
+        "two distinct prime factors and be squarefree."
     ),
 )
