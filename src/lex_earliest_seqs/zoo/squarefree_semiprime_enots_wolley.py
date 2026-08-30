@@ -4,9 +4,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from ..core import SequenceDefinition
-from ..object_space import PositiveIntegers
-from ..projections import prime_exponent_projection, prime_factorization
+from .factor_restricted_enots_wolley import (
+    EWFactorPolicy,
+    make_factor_restricted_enots_wolley_definition,
+)
+
+# X000000 is the Ω=2, squarefree member of the finite-Ω EW family.
+X000000_POLICY = EWFactorPolicy(
+    allowed_omega=frozenset({2}),
+    squarefree=True,
+)
 
 # Direct greedy computation gives this finite transient.  A proved two-hub
 # induction takes over afterward: for every k >= 10, the terms at indices
@@ -41,30 +48,28 @@ _INITIAL_PRIMES = (2, 3, 5, 7, 11, 13, 17, 19, 23)
 
 
 def is_squarefree_semiprime(value: int) -> bool:
-    """Return whether ``value`` is a product of two distinct primes."""
+    """Return whether ``value`` satisfies the X000000 factor policy."""
 
-    factors = prime_factorization(value)
-    return len(factors) == 2 and all(exponent == 1 for _, exponent in factors)
+    return X000000_POLICY.allows(value)
 
 
 @dataclass
 class SquarefreeSemiprimeEnotsWolleyGenerator:
-    """Generate the squarefree-semiprime restriction of Enots--Wolley.
+    """Optimized generator for X000000.
 
-    The initial terms are 1, 2.  Every later term is required to be a product
-    of two distinct primes, while otherwise obeying the ordinary Enots--Wolley
-    rule and lexicographic minimization.
+    The mathematical restriction is ``X000000_POLICY``.  The generic
+    ``FactorRestrictedEnotsWolleyGenerator`` can generate the same sequence
+    directly; this implementation instead uses the proved closed form after
+    the 24-term greedy transient.
 
-    The greedy trajectory has a proved closed form after term 24.  If ``p_k``
-    denotes the kth prime, then for every ``k >= 10``::
+    If ``p_k`` denotes the kth prime, then for every ``k >= 10``::
 
         {c_(2k+5), c_(2k+6)} = {2*p_k, 3*p_k},
 
-    with ``(2*p_k, 3*p_k)`` for even k and the reverse order for odd k.  The
-    generator therefore stores the finite greedy transient and uses the theorem
-    for the infinite tail rather than repeatedly searching candidate integers.
+    with ``(2*p_k, 3*p_k)`` for even k and the reverse order for odd k.
     """
 
+    policy: EWFactorPolicy = field(default=X000000_POLICY, init=False)
     terms: list[int] = field(default_factory=lambda: [1, 2])
     primes: list[int] = field(default_factory=lambda: list(_INITIAL_PRIMES))
 
@@ -112,10 +117,11 @@ class SquarefreeSemiprimeEnotsWolleyGenerator:
             self.terms.append(self._term_at_subscript(subscript))
 
 
-SQUAREFREE_SEMIPRIME_ENOTS_WOLLEY = SequenceDefinition[int](
+SQUAREFREE_SEMIPRIME_ENOTS_WOLLEY = make_factor_restricted_enots_wolley_definition(
     id="X000000",
     oeis=None,
     name="Squarefree-semiprime Enots--Wolley",
+    policy=X000000_POLICY,
     aliases=(
         "semiprime-ew",
         "squarefree-semiprime-ew",
@@ -123,14 +129,11 @@ SQUAREFREE_SEMIPRIME_ENOTS_WOLLEY = SequenceDefinition[int](
         "enots-wolley-squarefree-semiprime",
     ),
     generator_factory=SquarefreeSemiprimeEnotsWolleyGenerator,
-    generator_version=1,
+    generator_version=2,
     definition_version=1,
-    offset=1,
-    object_space=PositiveIntegers(),
-    projections={"prime-exponents": prime_exponent_projection()},
     description=(
         "Lexicographically earliest sequence starting 1, 2 and obeying the "
-        "Enots--Wolley rule while requiring every later term to be a product "
-        "of two distinct primes."
+        "Enots--Wolley rule while requiring every later term to have Ω(n)=2 "
+        "and be squarefree."
     ),
 )
