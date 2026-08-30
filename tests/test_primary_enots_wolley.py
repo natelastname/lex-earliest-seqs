@@ -1,10 +1,16 @@
+import pickle
+from collections import defaultdict
+
 import pytest
 
 from lex_earliest_seqs import registry
 from lex_earliest_seqs.cache import open_run
+from lex_earliest_seqs.zoo.enots_wolley import prime_support
 from lex_earliest_seqs.zoo.factor_restricted_enots_wolley import (
     EWFactorPolicy,
     FactorRestrictedEnotsWolleyDefinition,
+    FactorRestrictedEnotsWolleyGenerator,
+    ReferenceFactorRestrictedEnotsWolleyGenerator,
 )
 from lex_earliest_seqs.zoo.primary_enots_wolley import (
     X000001_POLICY,
@@ -25,6 +31,8 @@ EXPECTED_POLICIES = {
     "X000005": EWFactorPolicy(frozenset({3}), squarefree=True),
 }
 
+GENERIC_IDS = ("X000001", "X000002", "X000003", "X000004", "X000005")
+
 
 @pytest.mark.parametrize(
     ("sequence_id", "policy"),
@@ -43,6 +51,9 @@ def test_all_six_factor_family_members_are_registered(sequence_id, policy):
     assert definition.oeis is None
     assert definition.factor_policy == policy == EXPECTED_POLICIES[sequence_id]
     assert "prime-exponents" in definition.projections
+    if sequence_id != "X000000":
+        assert definition.generator_version == 2
+        assert isinstance(definition.generator_factory(), FactorRestrictedEnotsWolleyGenerator)
 
 
 @pytest.mark.parametrize(
@@ -92,13 +103,118 @@ def test_all_six_factor_family_members_are_registered(sequence_id, policy):
         ),
     ],
 )
-def test_factor_family_reference_prefixes(sequence_id, alias, prefix):
+def test_factor_family_regression_prefixes(sequence_id, alias, prefix):
     definition = registry.resolve(sequence_id)
     assert registry.resolve(alias) is definition
 
     run = open_run(definition, use_cache=False)
     run.ensure(len(prefix))
     assert list(run.terms) == prefix
+
+
+@pytest.mark.parametrize("sequence_id", GENERIC_IDS)
+def test_optimized_generator_matches_independent_reference_through_1000_terms(
+    sequence_id,
+):
+    definition = registry.resolve(sequence_id)
+    policy = definition.factor_policy
+    assert policy is not None
+
+    optimized = FactorRestrictedEnotsWolleyGenerator(policy=policy)
+    reference = ReferenceFactorRestrictedEnotsWolleyGenerator(policy=policy)
+    optimized.extend_to(1_000)
+    reference.extend_to(1_000)
+
+    assert optimized.terms == reference.terms
+    assert optimized.used == reference.used
+    assert optimized.multiplier_successors
+
+
+@pytest.mark.parametrize("sequence_id", GENERIC_IDS)
+def test_optimized_generator_pickle_resume_matches_reference(sequence_id):
+    definition = registry.resolve(sequence_id)
+    policy = definition.factor_policy
+    assert policy is not None
+
+    optimized = FactorRestrictedEnotsWolleyGenerator(policy=policy)
+    optimized.extend_to(250)
+    successor_snapshot = {
+        prime: dict(parents)
+        for prime, parents in optimized.multiplier_successors.items()
+    }
+
+    restored = pickle.loads(pickle.dumps(optimized))
+    assert restored.terms == optimized.terms
+    assert restored.used == optimized.used
+    assert restored.multiplier_successors == successor_snapshot
+
+    restored.extend_to(750)
+    reference = ReferenceFactorRestrictedEnotsWolleyGenerator(policy=policy)
+    reference.extend_to(750)
+    assert restored.terms == reference.terms
+
+
+@pytest.mark.parametrize("sequence_id", GENERIC_IDS)
+def test_generated_prefix_satisfies_full_definition_and_is_injective(sequence_id):
+    definition = registry.resolve(sequence_id)
+    policy = definition.factor_policy
+    assert policy is not None
+
+    generator = FactorRestrictedEnotsWolleyGenerator(policy=policy)
+    generator.extend_to(1_000)
+    assert len(generator.terms) == len(set(generator.terms))
+
+    for index in range(2, len(generator.terms)):
+        value = generator.terms[index]
+        previous = generator.terms[index - 1]
+        two_back = generator.terms[index - 2]
+        support = prime_support(value)
+        previous_support = prime_support(previous)
+
+        assert policy.allows(value)
+        assert support & previous_support
+        assert not support & prime_support(two_back)
+        assert support - previous_support
+
+
+@pytest.mark.parametrize("sequence_id", ("X000001", "X000002", "X000004"))
+def test_each_reused_exact_support_is_served_in_numerical_queue_order(sequence_id):
+    """Selected values on one support must form an initial exact-support queue."""
+
+    definition = registry.resolve(sequence_id)
+    generator = definition.generator_factory()
+    generator.extend_to(500)
+
+    by_support = defaultdict(list)
+    for value in generator.terms[2:]:
+        by_support[prime_support(value)].append(value)
+
+    checked = 0
+    for support, values in by_support.items():
+        if len(values) < 2:
+            continue
+        last = values[-1]
+        exact_support_prefix = [
+            value
+            for value in range(2, last + 1)
+            if prime_support(value) == support
+        ]
+        assert values == exact_support_prefix
+        checked += 1
+        if checked >= 20:
+            break
+
+    assert checked > 0
+
+
+@pytest.mark.parametrize("sequence_id", ("X000003", "X000005"))
+def test_squarefree_variants_never_reuse_an_exact_prime_support(sequence_id):
+    definition = registry.resolve(sequence_id)
+    generator = definition.generator_factory()
+    generator.extend_to(500)
+
+    supports = [prime_support(value) for value in generator.terms[2:]]
+    assert len(supports) == len(set(supports))
 
 
 def test_multiplicity_flag_changes_biprimary_sequence_at_term_seven():
