@@ -54,6 +54,7 @@ def test_all_six_factor_family_members_are_registered(sequence_id, policy):
             [
                 1, 2, 6, 15, 35, 14, 12, 33, 55, 10,
                 18, 21, 77, 22, 20, 45, 39, 26, 28, 63,
+                51, 34, 38, 57, 69, 46, 40, 65, 91, 56,
             ],
         ),
         (
@@ -62,6 +63,7 @@ def test_all_six_factor_family_members_are_registered(sequence_id, policy):
             [
                 1, 2, 6, 15, 35, 14, 12, 33, 55, 10,
                 18, 21, 77, 22, 20, 45, 39, 26, 28, 63,
+                51, 34, 38, 57, 69, 46, 40, 65, 91, 42,
             ],
         ),
         (
@@ -110,6 +112,18 @@ def test_multiplicity_flag_changes_biprimary_sequence_at_term_seven():
     assert squarefree.terms[6] == 22
     assert X000001_POLICY.allows(12)
     assert not X000000_POLICY.allows(12)
+
+
+def test_allowing_three_factor_supports_first_changes_nonsquarefree_term_30():
+    biprimary = open_run(registry.resolve("X000001"), use_cache=False)
+    triprimary = open_run(registry.resolve("X000002"), use_cache=False)
+
+    biprimary.ensure(30)
+    triprimary.ensure(30)
+
+    assert list(biprimary.terms[:29]) == list(triprimary.terms[:29])
+    assert biprimary.terms[29] == 56
+    assert triprimary.terms[29] == 42
 
 
 def test_squarefree_flag_is_independent_for_three_factor_supports():
