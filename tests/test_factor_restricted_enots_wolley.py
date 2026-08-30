@@ -6,7 +6,15 @@ from lex_earliest_seqs.zoo.factor_restricted_enots_wolley import (
     FactorRestrictedEnotsWolleyGenerator,
     big_omega,
     make_factor_restricted_enots_wolley_definition,
+    omega,
 )
+
+
+def test_omega_counts_distinct_prime_factors():
+    assert omega(1) == 0
+    assert omega(12) == 2
+    assert omega(18) == 2
+    assert omega(30) == 3
 
 
 def test_big_omega_counts_prime_factors_with_multiplicity():
@@ -28,20 +36,22 @@ def test_factor_policy_normalizes_and_validates_allowed_omega():
         EWFactorPolicy(allowed_omega=frozenset({2, 3.0}))
 
 
-def test_squarefree_is_independent_of_allowed_omega():
+def test_squarefree_is_independent_of_distinct_prime_count():
     multiplicity_allowed = EWFactorPolicy(
-        allowed_omega=frozenset({3}),
+        allowed_omega=frozenset({2}),
         squarefree=False,
     )
     squarefree_only = EWFactorPolicy(
-        allowed_omega=frozenset({3}),
+        allowed_omega=frozenset({2}),
         squarefree=True,
     )
 
     assert multiplicity_allowed.allows(12)
-    assert multiplicity_allowed.allows(30)
-    assert squarefree_only.allows(30)
+    assert multiplicity_allowed.allows(18)
+    assert multiplicity_allowed.allows(6)
     assert not squarefree_only.allows(12)
+    assert not squarefree_only.allows(18)
+    assert squarefree_only.allows(6)
 
 
 def test_definition_factory_retains_policy_and_uses_generic_generator_by_default():
@@ -51,7 +61,7 @@ def test_definition_factory_retains_policy_and_uses_generic_generator_by_default
     )
     definition = make_factor_restricted_enots_wolley_definition(
         id="X999999",
-        name="Test finite-Omega EW",
+        name="Test finite-omega EW",
         policy=policy,
     )
 
@@ -63,7 +73,7 @@ def test_definition_factory_retains_policy_and_uses_generic_generator_by_default
     assert "prime-exponents" in definition.projections
 
 
-def test_omega_two_ew_is_unchanged_by_squarefree_flag():
+def test_biprimary_multiplicity_allowed_differs_from_squarefree_variant():
     multiplicity_allowed = FactorRestrictedEnotsWolleyGenerator(
         policy=EWFactorPolicy(frozenset({2}), squarefree=False)
     )
@@ -71,7 +81,8 @@ def test_omega_two_ew_is_unchanged_by_squarefree_flag():
         policy=EWFactorPolicy(frozenset({2}), squarefree=True)
     )
 
-    multiplicity_allowed.extend_to(80)
-    squarefree_only.extend_to(80)
+    multiplicity_allowed.extend_to(7)
+    squarefree_only.extend_to(7)
 
-    assert multiplicity_allowed.terms == squarefree_only.terms
+    assert multiplicity_allowed.terms == [1, 2, 6, 15, 35, 14, 12]
+    assert squarefree_only.terms == [1, 2, 6, 15, 35, 14, 22]
