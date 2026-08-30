@@ -27,9 +27,9 @@ def _reference_squarefree_semiprime_enots_wolley(count: int) -> list[int]:
 
 
 def test_squarefree_semiprime_enots_wolley_registry_and_prefix():
-    definition = registry.resolve("A??????")
+    definition = registry.resolve("X000000")
     assert definition.id == "squarefree-semiprime-enots-wolley"
-    assert definition.oeis == "A??????"
+    assert definition.oeis == "X000000"
     assert registry.resolve("semiprime-ew") is definition
     assert "prime-exponents" in definition.projections
 
