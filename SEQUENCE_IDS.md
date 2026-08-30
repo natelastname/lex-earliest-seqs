@@ -11,8 +11,8 @@ Sequences that are not on the OEIS use a local six-digit `X`-number as the canon
 | `X000000` | `omega(n) = 2`, squarefree |
 | `X000001` | `omega(n) = 2`, multiplicity allowed |
 | `X000002` | `omega(n) in {2, 3}`, multiplicity allowed |
-| `X000003` | `omega(n) = 3`, multiplicity allowed |
-| `X000004` | `omega(n) in {2, 3}`, squarefree |
+| `X000003` | `omega(n) in {2, 3}`, squarefree |
+| `X000004` | `omega(n) = 3`, multiplicity allowed |
 | `X000005` | `omega(n) = 3`, squarefree |
 
 Here `omega(n)` denotes the number of **distinct** prime factors. The independent `squarefree` flag controls whether repeated prime exponents are forbidden.
