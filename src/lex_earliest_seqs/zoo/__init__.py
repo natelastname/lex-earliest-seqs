@@ -17,6 +17,19 @@ from .forced_squarefree_enots_wolley import (
     FORCED_SQUAREFREE_ENOTS_WOLLEY,
     ForcedSquarefreeEnotsWolleyGenerator,
 )
+from .primary_enots_wolley import (
+    BIPRIMARY_ENOTS_WOLLEY,
+    EXACT_TRIPRIMARY_ENOTS_WOLLEY,
+    PRIMARY_ENOTS_WOLLEY_DEFINITIONS,
+    SQUAREFREE_EXACT_TRIPRIMARY_ENOTS_WOLLEY,
+    SQUAREFREE_TRIPRIMARY_ENOTS_WOLLEY,
+    TRIPRIMARY_ENOTS_WOLLEY,
+    X000001_POLICY,
+    X000002_POLICY,
+    X000003_POLICY,
+    X000004_POLICY,
+    X000005_POLICY,
+)
 from .squarefree_semiprime_enots_wolley import (
     SQUAREFREE_SEMIPRIME_ENOTS_WOLLEY,
     X000000_POLICY,
@@ -25,17 +38,28 @@ from .squarefree_semiprime_enots_wolley import (
 
 __all__ = [
     "BINARY_ENOTS_WOLLEY",
+    "BIPRIMARY_ENOTS_WOLLEY",
     "BinaryEnotsWolleyGenerator",
     "ENOTS_WOLLEY",
     "EWFactorPolicy",
+    "EXACT_TRIPRIMARY_ENOTS_WOLLEY",
     "EnotsWolleyGenerator",
     "FORCED_SQUAREFREE_ENOTS_WOLLEY",
     "FactorRestrictedEnotsWolleyDefinition",
     "FactorRestrictedEnotsWolleyGenerator",
     "ForcedSquarefreeEnotsWolleyGenerator",
+    "PRIMARY_ENOTS_WOLLEY_DEFINITIONS",
+    "SQUAREFREE_EXACT_TRIPRIMARY_ENOTS_WOLLEY",
     "SQUAREFREE_SEMIPRIME_ENOTS_WOLLEY",
+    "SQUAREFREE_TRIPRIMARY_ENOTS_WOLLEY",
     "SquarefreeSemiprimeEnotsWolleyGenerator",
+    "TRIPRIMARY_ENOTS_WOLLEY",
     "X000000_POLICY",
+    "X000001_POLICY",
+    "X000002_POLICY",
+    "X000003_POLICY",
+    "X000004_POLICY",
+    "X000005_POLICY",
     "big_omega",
     "make_factor_restricted_enots_wolley_definition",
     "omega",
@@ -48,3 +72,5 @@ def register_builtins(registry: SequenceRegistry) -> None:
     registry.register(BINARY_ENOTS_WOLLEY)
     registry.register(FORCED_SQUAREFREE_ENOTS_WOLLEY)
     registry.register(SQUAREFREE_SEMIPRIME_ENOTS_WOLLEY)
+    for definition in PRIMARY_ENOTS_WOLLEY_DEFINITIONS:
+        registry.register(definition)
