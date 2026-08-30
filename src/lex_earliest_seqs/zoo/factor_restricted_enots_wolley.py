@@ -1,4 +1,4 @@
-"""Reusable finite-Ω restrictions for Enots--Wolley-type sequences."""
+"""Reusable finite-omega restrictions for Enots--Wolley-type sequences."""
 
 from __future__ import annotations
 
@@ -12,8 +12,16 @@ from ..projections import prime_exponent_projection, prime_factorization
 from .enots_wolley import is_candidate
 
 
+def omega(value: int) -> int:
+    """Return omega(value), the number of distinct prime factors."""
+
+    if value < 1:
+        raise ValueError("value must be positive")
+    return len(prime_factorization(value))
+
+
 def big_omega(value: int) -> int:
-    """Return Ω(value), counting prime factors with multiplicity."""
+    """Return big-Omega(value), counting prime factors with multiplicity."""
 
     if value < 1:
         raise ValueError("value must be positive")
@@ -22,11 +30,16 @@ def big_omega(value: int) -> int:
 
 @dataclass(frozen=True, slots=True)
 class EWFactorPolicy:
-    """Finite multiplicative-degree restriction for an EW-type sequence.
+    """Finite prime-support-size restriction for an EW-type sequence.
 
     ``allowed_omega`` is a finite nonempty set of allowed values of the
-    big-Omega function Ω(n), so multiplicity is counted. ``squarefree`` adds
-    the independent requirement that every prime exponent be at most one.
+    little-omega function omega(n), so it counts distinct prime factors and
+    ignores multiplicity. By default arbitrary positive exponents are allowed.
+    ``squarefree=True`` independently requires every prime exponent to equal 1.
+
+    For example, ``allowed_omega={2}, squarefree=False`` gives the biprimary
+    family with exact supports {p, q} and objects p^a q^b for a,b >= 1, whereas
+    setting ``squarefree=True`` leaves only pq on each pair support.
 
     The policy applies to generated terms after the sequence's initial seed;
     the standard EW seed 1, 2 need not itself satisfy the policy.
@@ -51,14 +64,14 @@ class EWFactorPolicy:
         if value < 1:
             return False
         factors = prime_factorization(value)
-        if sum(exponent for _, exponent in factors) not in self.allowed_omega:
+        if len(factors) not in self.allowed_omega:
             return False
         return not self.squarefree or all(exponent == 1 for _, exponent in factors)
 
 
 @dataclass(frozen=True)
 class FactorRestrictedEnotsWolleyDefinition(SequenceDefinition[int]):
-    """Sequence definition carrying its finite-Ω mathematical policy."""
+    """Sequence definition carrying its finite-omega mathematical policy."""
 
     factor_policy: EWFactorPolicy | None = None
 
@@ -70,7 +83,7 @@ class FactorRestrictedEnotsWolleyDefinition(SequenceDefinition[int]):
 
 @dataclass
 class FactorRestrictedEnotsWolleyGenerator:
-    """Correct generic generator for a finite-Ω EW restriction.
+    """Correct generic generator for a finite-omega EW restriction.
 
     This is deliberately a simple reference/fallback implementation. It scans
     admissible positive integers in numeric order at each step and applies the
@@ -124,7 +137,7 @@ def make_factor_restricted_enots_wolley_definition(
     definition_version: int = 1,
     description: str = "",
 ) -> FactorRestrictedEnotsWolleyDefinition:
-    """Build metadata for one member of the finite-Ω EW family.
+    """Build metadata for one member of the finite-omega EW family.
 
     When no specialized ``generator_factory`` is supplied, the generic direct
     generator is used. Supplying an optimized generator changes only the
@@ -141,7 +154,7 @@ def make_factor_restricted_enots_wolley_definition(
         squarefree = " and requiring squarefree terms" if policy.squarefree else ""
         description = (
             "Lexicographically earliest sequence starting 1, 2 and obeying the "
-            f"Enots--Wolley rule with Ω(n) in {{{degrees}}}{squarefree}."
+            f"Enots--Wolley rule with omega(n) in {{{degrees}}}{squarefree}."
         )
 
     return FactorRestrictedEnotsWolleyDefinition(
