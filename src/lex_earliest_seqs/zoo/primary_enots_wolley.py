@@ -6,11 +6,11 @@ from .factor_restricted_enots_wolley import (
     EWFactorPolicy,
     make_factor_restricted_enots_wolley_definition,
 )
+from .squarefree_semiprime_enots_wolley import SQUAREFREE_SEMIPRIME_ENOTS_WOLLEY
 
-# X000000 is the squarefree omega={2} member and lives in
-# squarefree_semiprime_enots_wolley.py because it has a specialized closed-form
-# generator.  The remaining five requested members use the generic policy-driven
-# generator for now.
+# X000000 is the squarefree omega={2} member and has its own specialized
+# closed-form generator. The remaining five requested members use the generic
+# policy-driven generator for now.
 
 X000001_POLICY = EWFactorPolicy(
     allowed_omega=frozenset({2}),
@@ -23,13 +23,13 @@ X000002_POLICY = EWFactorPolicy(
 )
 
 X000003_POLICY = EWFactorPolicy(
-    allowed_omega=frozenset({3}),
-    squarefree=False,
+    allowed_omega=frozenset({2, 3}),
+    squarefree=True,
 )
 
 X000004_POLICY = EWFactorPolicy(
-    allowed_omega=frozenset({2, 3}),
-    squarefree=True,
+    allowed_omega=frozenset({3}),
+    squarefree=False,
 )
 
 X000005_POLICY = EWFactorPolicy(
@@ -74,11 +74,28 @@ TRIPRIMARY_ENOTS_WOLLEY = make_factor_restricted_enots_wolley_definition(
     ),
 )
 
-EXACT_TRIPRIMARY_ENOTS_WOLLEY = make_factor_restricted_enots_wolley_definition(
+SQUAREFREE_TRIPRIMARY_ENOTS_WOLLEY = make_factor_restricted_enots_wolley_definition(
     id="X000003",
     oeis=None,
-    name="Exact-triprimary Enots--Wolley",
+    name="Squarefree triprimary Enots--Wolley",
     policy=X000003_POLICY,
+    aliases=(
+        "squarefree-triprimary-ew",
+        "squarefree-triprimary-enots-wolley",
+        "squarefree-omega-2-3-ew",
+    ),
+    description=(
+        "Lexicographically earliest sequence starting 1, 2 and obeying the "
+        "Enots--Wolley rule while requiring every later term to be squarefree "
+        "with either two or three distinct prime factors."
+    ),
+)
+
+EXACT_TRIPRIMARY_ENOTS_WOLLEY = make_factor_restricted_enots_wolley_definition(
+    id="X000004",
+    oeis=None,
+    name="Exact-triprimary Enots--Wolley",
+    policy=X000004_POLICY,
     aliases=(
         "exact-triprimary-ew",
         "exact-triprimary-enots-wolley",
@@ -89,23 +106,6 @@ EXACT_TRIPRIMARY_ENOTS_WOLLEY = make_factor_restricted_enots_wolley_definition(
         "Enots--Wolley rule while requiring every later term to have exactly "
         "three distinct prime factors; arbitrary positive prime multiplicities "
         "are allowed."
-    ),
-)
-
-SQUAREFREE_TRIPRIMARY_ENOTS_WOLLEY = make_factor_restricted_enots_wolley_definition(
-    id="X000004",
-    oeis=None,
-    name="Squarefree triprimary Enots--Wolley",
-    policy=X000004_POLICY,
-    aliases=(
-        "squarefree-triprimary-ew",
-        "squarefree-triprimary-enots-wolley",
-        "squarefree-omega-2-3-ew",
-    ),
-    description=(
-        "Lexicographically earliest sequence starting 1, 2 and obeying the "
-        "Enots--Wolley rule while requiring every later term to be squarefree "
-        "with either two or three distinct prime factors."
     ),
 )
 
@@ -129,9 +129,10 @@ SQUAREFREE_EXACT_TRIPRIMARY_ENOTS_WOLLEY = (
 )
 
 PRIMARY_ENOTS_WOLLEY_DEFINITIONS = (
+    SQUAREFREE_SEMIPRIME_ENOTS_WOLLEY,
     BIPRIMARY_ENOTS_WOLLEY,
     TRIPRIMARY_ENOTS_WOLLEY,
-    EXACT_TRIPRIMARY_ENOTS_WOLLEY,
     SQUAREFREE_TRIPRIMARY_ENOTS_WOLLEY,
+    EXACT_TRIPRIMARY_ENOTS_WOLLEY,
     SQUAREFREE_EXACT_TRIPRIMARY_ENOTS_WOLLEY,
 )
