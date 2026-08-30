@@ -7,6 +7,7 @@ from .binary_enots_wolley import BINARY_ENOTS_WOLLEY, BinaryEnotsWolleyGenerator
 from .enots_wolley import ENOTS_WOLLEY, EnotsWolleyGenerator
 from .factor_restricted_enots_wolley import (
     EWFactorPolicy,
+    FactorRestrictedEnotsWolleyDefinition,
     FactorRestrictedEnotsWolleyGenerator,
     big_omega,
     make_factor_restricted_enots_wolley_definition,
@@ -28,6 +29,7 @@ __all__ = [
     "EWFactorPolicy",
     "EnotsWolleyGenerator",
     "FORCED_SQUAREFREE_ENOTS_WOLLEY",
+    "FactorRestrictedEnotsWolleyDefinition",
     "FactorRestrictedEnotsWolleyGenerator",
     "ForcedSquarefreeEnotsWolleyGenerator",
     "SQUAREFREE_SEMIPRIME_ENOTS_WOLLEY",
