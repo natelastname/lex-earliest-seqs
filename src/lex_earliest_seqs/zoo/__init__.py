@@ -71,6 +71,5 @@ def register_builtins(registry: SequenceRegistry) -> None:
     registry.register(ENOTS_WOLLEY)
     registry.register(BINARY_ENOTS_WOLLEY)
     registry.register(FORCED_SQUAREFREE_ENOTS_WOLLEY)
-    registry.register(SQUAREFREE_SEMIPRIME_ENOTS_WOLLEY)
     for definition in PRIMARY_ENOTS_WOLLEY_DEFINITIONS:
         registry.register(definition)
