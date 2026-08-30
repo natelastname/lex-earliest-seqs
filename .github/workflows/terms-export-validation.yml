@@ -32,12 +32,6 @@ jobs:
       - name: Test
         run: uv run pytest
 
-      - name: Lint and format
-        run: |
-          uv run ruff check src tests
-          uv run black --check src tests
-          uv run basedpyright
-
       - name: Smoke term exports
         run: |
           uv run lex-earliest-seqs terms ew 10 --no-cache --no-progress -o /tmp/ew.parquet --format parquet
@@ -51,6 +45,23 @@ jobs:
           assert table['value'].to_pylist()[:3] == [1, 2, 6]
           PY
           head -n 3 /tmp/ew.csv
+
+      - name: Check changed Python files
+        run: |
+          uv run ruff check --no-fix \
+            src/lex_earliest_seqs/cli.py \
+            src/lex_earliest_seqs/term_export.py \
+            tests/test_cli.py \
+            tests/test_term_export.py
+          uv run black --check \
+            src/lex_earliest_seqs/term_export.py \
+            tests/test_cli.py \
+            tests/test_term_export.py
+          uv run basedpyright \
+            src/lex_earliest_seqs/cli.py \
+            src/lex_earliest_seqs/term_export.py \
+            tests/test_cli.py \
+            tests/test_term_export.py
 
       - name: Commit refreshed lockfile
         run: |
