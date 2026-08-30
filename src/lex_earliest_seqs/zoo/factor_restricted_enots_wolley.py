@@ -5,11 +5,13 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from functools import partial
+from heapq import heappop, heappush
+from math import gcd, prod
 
 from ..core import SequenceDefinition, SequenceGenerator
 from ..object_space import PositiveIntegers
 from ..projections import prime_exponent_projection, prime_factorization
-from .enots_wolley import is_candidate
+from .enots_wolley import prime_support
 
 
 def omega(value: int) -> int:
@@ -82,32 +84,207 @@ class FactorRestrictedEnotsWolleyDefinition(SequenceDefinition[int]):
 
 
 @dataclass
-class FactorRestrictedEnotsWolleyGenerator:
-    """Correct generic generator for a finite-omega EW restriction.
+class ReferenceFactorRestrictedEnotsWolleyGenerator:
+    """Slow direct scanner used as a correctness oracle.
 
-    This is deliberately a simple reference/fallback implementation. It scans
-    admissible positive integers in numeric order at each step and applies the
-    ordinary EW adjacency rule plus ``policy``. Family members with exploitable
-    structure may provide specialized generators while retaining the same
-    ``EWFactorPolicy``.
+    This implementation deliberately knows nothing about candidate streams. At
+    each step it scans positive integers from 1 upward and applies the complete
+    mathematical definition. Production family members use
+    ``FactorRestrictedEnotsWolleyGenerator`` instead, while tests compare the
+    optimized generator against this reference implementation.
     """
 
     policy: EWFactorPolicy
     terms: list[int] = field(default_factory=lambda: [1, 2])
     used: set[int] = field(default_factory=lambda: {1, 2})
 
+    def _is_candidate(self, value: int) -> bool:
+        previous = self.terms[-1]
+        two_back = self.terms[-2]
+        value_support = prime_support(value)
+        previous_support = prime_support(previous)
+        return (
+            value not in self.used
+            and self.policy.allows(value)
+            and bool(value_support & previous_support)
+            and not bool(value_support & prime_support(two_back))
+            and bool(value_support - previous_support)
+        )
+
+    def _next_candidate(self) -> int:
+        candidate = 1
+        while not self._is_candidate(candidate):
+            candidate += 1
+        return candidate
+
+    def extend_to(self, count: int) -> None:
+        if count < 0:
+            raise ValueError("count must be nonnegative")
+        if count <= len(self.terms):
+            return
+        if len(self.terms) < 2:
+            raise RuntimeError(
+                "ReferenceFactorRestrictedEnotsWolleyGenerator state is missing "
+                "initial terms"
+            )
+
+        while len(self.terms) < count:
+            candidate = self._next_candidate()
+            self.terms.append(candidate)
+            self.used.add(candidate)
+
+
+def _next_coprime(lower_bound: int, forbidden_radical: int) -> int:
+    candidate = max(1, lower_bound)
+    while gcd(candidate, forbidden_radical) != 1:
+        candidate += 1
+    return candidate
+
+
+@dataclass
+class FactorRestrictedEnotsWolleyGenerator:
+    """Optimized finite-omega EW generator using persistent candidate streams.
+
+    For predecessor ``A`` and two-back term ``B``, let
+    ``R = P(A) - P(B) = {p_1 < ... < p_k}``. Every integer sharing an active
+    predecessor prime while remaining coprime to ``B`` is assigned to exactly
+    one stream: stream ``i`` contains ``p_i*m`` where ``m`` is coprime to
+    ``rad(B) * p_1 * ... * p_{i-1}``. The local streams are merged by a min-heap,
+    so candidate integers are examined directly in increasing numerical order.
+
+    The factor policy is global, not state-dependent. For each possible stream
+    prime we therefore persist a successor-with-delete map over multipliers.
+    Multipliers whose products are already used *or can never satisfy the factor
+    policy* are permanently deleted and path-compressed. Only failures of the
+    local "introduce a new predecessor-external prime" condition must be revisited
+    in later states.
+
+    This is the lazy version of the support-queue idea. Exact-support queues are
+    not materialized wholesale: the integer stream reaches the current head of a
+    structurally admissible support before any later element of that support can
+    win. This avoids enumerating the very large collection of degree-3 supports
+    whose radicals happen to lie below a coarse numerical bound.
+    """
+
+    policy: EWFactorPolicy
+    terms: list[int] = field(default_factory=lambda: [1, 2])
+    used: set[int] = field(default_factory=lambda: {1, 2})
+    multiplier_successors: dict[int, dict[int, int]] = field(
+        default_factory=dict,
+        repr=False,
+    )
+
+    def _find_multiplier_successor(self, stream_prime: int, multiplier: int) -> int:
+        parents = self.multiplier_successors.setdefault(stream_prime, {})
+        current = max(1, multiplier)
+        path: list[int] = []
+        while current in parents:
+            path.append(current)
+            current = parents[current]
+        for item in path:
+            parents[item] = current
+        return current
+
+    def _next_persistently_eligible_multiplier(
+        self,
+        stream_prime: int,
+        lower_bound: int,
+    ) -> int:
+        """Skip products that can never be selected in any future local state."""
+
+        parents = self.multiplier_successors.setdefault(stream_prime, {})
+        multiplier = self._find_multiplier_successor(stream_prime, lower_bound)
+        while True:
+            candidate = stream_prime * multiplier
+            if candidate not in self.used and self.policy.allows(candidate):
+                return multiplier
+            successor = self._find_multiplier_successor(
+                stream_prime,
+                multiplier + 1,
+            )
+            parents[multiplier] = successor
+            multiplier = successor
+
+    def _next_stream_multiplier(
+        self,
+        stream_prime: int,
+        lower_bound: int,
+        forbidden_radical: int,
+    ) -> int:
+        """Return the least persistent candidate satisfying today's exclusions."""
+
+        multiplier = max(1, lower_bound)
+        while True:
+            multiplier = self._next_persistently_eligible_multiplier(
+                stream_prime,
+                multiplier,
+            )
+            coprime_multiplier = _next_coprime(multiplier, forbidden_radical)
+            if coprime_multiplier == multiplier:
+                return multiplier
+            multiplier = coprime_multiplier
+
     def _next_candidate(self) -> int:
         previous = self.terms[-1]
         two_back = self.terms[-2]
-        candidate = 1
-        while True:
-            if (
-                candidate not in self.used
-                and self.policy.allows(candidate)
-                and is_candidate(candidate, previous, two_back)
-            ):
+        previous_support = prime_support(previous)
+        two_back_support = prime_support(two_back)
+        shared_primes = tuple(sorted(previous_support - two_back_support))
+        if not shared_primes:
+            raise RuntimeError(
+                "factor-restricted EW state has no predecessor prime disjoint "
+                "from the two-back term"
+            )
+
+        # Stream i owns exactly the locally share/coprime integers whose first
+        # divisor among shared_primes is p_i. The heap therefore merges disjoint
+        # streams in exact numerical order.
+        heap: list[tuple[int, int, int, int]] = []
+        earlier_shared_product = 1
+        two_back_radical = prod(two_back_support)
+        for stream_prime in shared_primes:
+            forbidden_radical = two_back_radical * earlier_shared_product
+            multiplier = self._next_stream_multiplier(
+                stream_prime,
+                1,
+                forbidden_radical,
+            )
+            heappush(
+                heap,
+                (
+                    stream_prime * multiplier,
+                    stream_prime,
+                    multiplier,
+                    forbidden_radical,
+                ),
+            )
+            earlier_shared_product *= stream_prime
+
+        while heap:
+            candidate, stream_prime, multiplier, forbidden_radical = heappop(heap)
+
+            # Stream construction guarantees: candidate is unused, satisfies the
+            # fixed factor policy, shares with the predecessor, and is coprime to
+            # the two-back term. Only the local new-prime condition remains.
+            if prime_support(candidate) - previous_support:
                 return candidate
-            candidate += 1
+
+            multiplier = self._next_stream_multiplier(
+                stream_prime,
+                multiplier + 1,
+                forbidden_radical,
+            )
+            heappush(
+                heap,
+                (
+                    stream_prime * multiplier,
+                    stream_prime,
+                    multiplier,
+                    forbidden_radical,
+                ),
+            )
+
+        raise RuntimeError("factor-restricted EW candidate heap unexpectedly exhausted")
 
     def extend_to(self, count: int) -> None:
         if count < 0:
@@ -139,10 +316,11 @@ def make_factor_restricted_enots_wolley_definition(
 ) -> FactorRestrictedEnotsWolleyDefinition:
     """Build metadata for one member of the finite-omega EW family.
 
-    When no specialized ``generator_factory`` is supplied, the generic direct
-    generator is used. Supplying an optimized generator changes only the
-    implementation; ``policy`` remains the mathematical restriction defining
-    the family member.
+    When no specialized ``generator_factory`` is supplied, the optimized
+    persistent-stream generator is used. Tests and experiments can instantiate
+    ``ReferenceFactorRestrictedEnotsWolleyGenerator`` explicitly as an oracle.
+    Supplying another generator changes only the implementation; ``policy``
+    remains the mathematical restriction defining the family member.
     """
 
     factory = generator_factory or partial(
