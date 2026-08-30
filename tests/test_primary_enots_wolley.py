@@ -52,7 +52,7 @@ def test_all_six_factor_family_members_are_registered(sequence_id, policy):
     assert definition.factor_policy == policy == EXPECTED_POLICIES[sequence_id]
     assert "prime-exponents" in definition.projections
     if sequence_id != "X000000":
-        assert definition.generator_version == 2
+        assert definition.generator_version == 3
         assert isinstance(definition.generator_factory(), FactorRestrictedEnotsWolleyGenerator)
 
 
