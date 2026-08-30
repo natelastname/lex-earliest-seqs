@@ -1,8 +1,10 @@
+import pickle
+
 from lex_earliest_seqs import registry
 from lex_earliest_seqs.cache import open_run
 from lex_earliest_seqs.zoo.factor_restricted_enots_wolley import (
     FactorRestrictedEnotsWolleyDefinition,
-    FactorRestrictedEnotsWolleyGenerator,
+    ReferenceFactorRestrictedEnotsWolleyGenerator,
 )
 from lex_earliest_seqs.zoo.squarefree_semiprime_enots_wolley import (
     X000000_POLICY,
@@ -69,14 +71,25 @@ def test_squarefree_semiprime_enots_wolley_registry_and_prefix():
     ]
 
 
-def test_x000000_closed_form_matches_generic_factor_restricted_generator():
+def test_x000000_closed_form_matches_independent_reference_through_1000_terms():
     optimized = SquarefreeSemiprimeEnotsWolleyGenerator()
-    reference = FactorRestrictedEnotsWolleyGenerator(policy=X000000_POLICY)
+    reference = ReferenceFactorRestrictedEnotsWolleyGenerator(policy=X000000_POLICY)
 
-    optimized.extend_to(80)
-    reference.extend_to(80)
+    optimized.extend_to(1_000)
+    reference.extend_to(1_000)
 
     assert optimized.terms == reference.terms
+
+
+def test_x000000_pickle_resume_preserves_closed_form_state():
+    optimized = SquarefreeSemiprimeEnotsWolleyGenerator()
+    optimized.extend_to(500)
+    restored = pickle.loads(pickle.dumps(optimized))
+    restored.extend_to(1_000)
+
+    reference = ReferenceFactorRestrictedEnotsWolleyGenerator(policy=X000000_POLICY)
+    reference.extend_to(1_000)
+    assert restored.terms == reference.terms
 
 
 def test_squarefree_semiprime_predicate_is_policy_backed():
