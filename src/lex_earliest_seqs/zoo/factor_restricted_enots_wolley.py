@@ -159,6 +159,14 @@ class FactorRestrictedEnotsWolleyGenerator:
     local "introduce a new predecessor-external prime" condition must be revisited
     in later states.
 
+    Used-value retirement is eager across stream representations. Whenever a
+    term ``x`` is selected, every representation ``x = p * (x/p)`` for
+    ``p in P(x)`` is immediately deleted from the persistent successor map for
+    stream ``p``. Since the current family has at most three distinct prime
+    factors, this costs only O(omega(x)) <= 3 successor deletions per selected
+    term and prevents the same used integer from being rediscovered later
+    through another active-prime stream.
+
     This is the lazy version of the support-queue idea. Exact-support queues are
     not materialized wholesale: the integer stream reaches the current head of a
     structurally admissible support before any later element of that support can
@@ -184,6 +192,49 @@ class FactorRestrictedEnotsWolleyGenerator:
         for item in path:
             parents[item] = current
         return current
+
+    def _delete_multiplier(self, stream_prime: int, multiplier: int) -> bool:
+        """Permanently remove one multiplier from a stream successor set.
+
+        Returns ``True`` only when this call performs a new deletion. Deletion is
+        represented by linking ``multiplier`` to the first surviving successor,
+        so future finds jump over it with path compression.
+        """
+
+        if multiplier < 1:
+            raise ValueError("multiplier must be positive")
+
+        surviving = self._find_multiplier_successor(stream_prime, multiplier)
+        if surviving != multiplier:
+            return False
+
+        parents = self.multiplier_successors.setdefault(stream_prime, {})
+        parents[multiplier] = self._find_multiplier_successor(
+            stream_prime,
+            multiplier + 1,
+        )
+        return True
+
+    def _retire_used_value(self, value: int) -> int:
+        """Delete every stream representation of a newly used value.
+
+        If ``value = p*m`` and ``p`` is any prime divisor of ``value``, then the
+        product can never be selected again from stream ``p`` in any future EW
+        state. Retiring all such ``m`` eagerly prevents cross-stream
+        rediscovery. The return value is the number of newly installed
+        deletions, useful for tests and instrumentation.
+        """
+
+        if value < 1:
+            raise ValueError("value must be positive")
+
+        deletions = 0
+        for stream_prime in prime_support(value):
+            deletions += self._delete_multiplier(
+                stream_prime,
+                value // stream_prime,
+            )
+        return deletions
 
     def _next_persistently_eligible_multiplier(
         self,
@@ -300,6 +351,7 @@ class FactorRestrictedEnotsWolleyGenerator:
             candidate = self._next_candidate()
             self.terms.append(candidate)
             self.used.add(candidate)
+            self._retire_used_value(candidate)
 
 
 def make_factor_restricted_enots_wolley_definition(
