@@ -48,7 +48,7 @@ BIPRIMARY_ENOTS_WOLLEY = make_factor_restricted_enots_wolley_definition(
         "biprimary-enots-wolley",
         "omega-2-ew",
     ),
-    generator_version=2,
+    generator_version=3,
     description=(
         "Lexicographically earliest sequence starting 1, 2 and obeying the "
         "Enots--Wolley rule while requiring every later term to have exactly "
@@ -67,7 +67,7 @@ TRIPRIMARY_ENOTS_WOLLEY = make_factor_restricted_enots_wolley_definition(
         "triprimary-enots-wolley",
         "omega-2-3-ew",
     ),
-    generator_version=2,
+    generator_version=3,
     description=(
         "Lexicographically earliest sequence starting 1, 2 and obeying the "
         "Enots--Wolley rule while requiring every later term to have either "
@@ -86,7 +86,7 @@ SQUAREFREE_TRIPRIMARY_ENOTS_WOLLEY = make_factor_restricted_enots_wolley_definit
         "squarefree-triprimary-enots-wolley",
         "squarefree-omega-2-3-ew",
     ),
-    generator_version=2,
+    generator_version=3,
     description=(
         "Lexicographically earliest sequence starting 1, 2 and obeying the "
         "Enots--Wolley rule while requiring every later term to be squarefree "
@@ -104,7 +104,7 @@ EXACT_TRIPRIMARY_ENOTS_WOLLEY = make_factor_restricted_enots_wolley_definition(
         "exact-triprimary-enots-wolley",
         "omega-3-ew",
     ),
-    generator_version=2,
+    generator_version=3,
     description=(
         "Lexicographically earliest sequence starting 1, 2 and obeying the "
         "Enots--Wolley rule while requiring every later term to have exactly "
@@ -124,7 +124,7 @@ SQUAREFREE_EXACT_TRIPRIMARY_ENOTS_WOLLEY = (
             "squarefree-exact-triprimary-enots-wolley",
             "squarefree-omega-3-ew",
         ),
-        generator_version=2,
+        generator_version=3,
         description=(
             "Lexicographically earliest sequence starting 1, 2 and obeying the "
             "Enots--Wolley rule while requiring every later term to be "
