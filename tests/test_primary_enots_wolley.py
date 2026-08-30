@@ -20,8 +20,8 @@ EXPECTED_POLICIES = {
     "X000000": EWFactorPolicy(frozenset({2}), squarefree=True),
     "X000001": EWFactorPolicy(frozenset({2}), squarefree=False),
     "X000002": EWFactorPolicy(frozenset({2, 3}), squarefree=False),
-    "X000003": EWFactorPolicy(frozenset({3}), squarefree=False),
-    "X000004": EWFactorPolicy(frozenset({2, 3}), squarefree=True),
+    "X000003": EWFactorPolicy(frozenset({2, 3}), squarefree=True),
+    "X000004": EWFactorPolicy(frozenset({3}), squarefree=False),
     "X000005": EWFactorPolicy(frozenset({3}), squarefree=True),
 }
 
@@ -68,18 +68,18 @@ def test_all_six_factor_family_members_are_registered(sequence_id, policy):
         ),
         (
             "X000003",
-            "exact-triprimary-ew",
-            [
-                1, 2, 30, 105, 1001, 286, 60, 255, 1309, 154,
-                78, 195, 385, 238, 102, 165, 455, 182, 66, 285,
-            ],
-        ),
-        (
-            "X000004",
             "squarefree-triprimary-ew",
             [
                 1, 2, 6, 15, 35, 14, 22, 33, 21, 70,
                 26, 39, 51, 34, 10, 55, 77, 42, 30, 65,
+            ],
+        ),
+        (
+            "X000004",
+            "exact-triprimary-ew",
+            [
+                1, 2, 30, 105, 1001, 286, 60, 255, 1309, 154,
+                78, 195, 385, 238, 102, 165, 455, 182, 66, 285,
             ],
         ),
         (
@@ -127,12 +127,12 @@ def test_allowing_three_factor_supports_first_changes_nonsquarefree_term_30():
 
 
 def test_squarefree_flag_is_independent_for_three_factor_supports():
-    assert X000003_POLICY.allows(60)  # 2^2 * 3 * 5
+    assert X000004_POLICY.allows(60)  # 2^2 * 3 * 5
     assert not X000005_POLICY.allows(60)
-    assert X000003_POLICY.allows(30)
+    assert X000004_POLICY.allows(30)
     assert X000005_POLICY.allows(30)
 
     assert X000002_POLICY.allows(12)  # two distinct prime factors
-    assert not X000004_POLICY.allows(12)
+    assert not X000003_POLICY.allows(12)
     assert X000002_POLICY.allows(30)  # three distinct prime factors
-    assert X000004_POLICY.allows(30)
+    assert X000003_POLICY.allows(30)
