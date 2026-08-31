@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pickle
 import sys
 import time
 from pathlib import Path
@@ -10,7 +11,7 @@ from typing import Annotated, Literal
 from cyclopts import App, Parameter, validators
 
 from . import registry
-from .cache import open_run
+from .cache import CacheCompatibilityError, cache_path_for, load_generator, open_run
 from .incidence import (
     ColumnMode,
     build_incidence_table,
@@ -133,6 +134,13 @@ def _projection(definition, name: str | None):
         ) from exc
 
 
+def _cached_term_count(definition, cache_dir: Path | None) -> int:
+    path = cache_path_for(definition, cache_dir)
+    if not path.exists():
+        return 0
+    return len(load_generator(definition, path).terms)
+
+
 def _terms_output_format(
     output: Path | None,
     requested: TermsOutputFormat | None,
@@ -165,13 +173,19 @@ def list_sequences() -> None:
 
 
 @app.command
-def info(sequence: str) -> None:
+def info(
+    sequence: str,
+    *,
+    cache_dir: Path | None = None,
+) -> None:
     """Show metadata for a sequence.
 
     Parameters
     ----------
     sequence
         Sequence ID, OEIS number, or registered alias.
+    cache_dir
+        Override the pickle cache directory when reporting the cached term count.
     """
 
     definition = registry.resolve(sequence)
@@ -184,6 +198,17 @@ def info(sequence: str) -> None:
     print(f"definition version: {definition.definition_version}")
     print(f"generator version: {definition.generator_version}")
     print("projections: " + (", ".join(definition.projections or {}) or "none"))
+    try:
+        cached_terms = _cached_term_count(definition, cache_dir)
+    except (
+        CacheCompatibilityError,
+        EOFError,
+        OSError,
+        pickle.UnpicklingError,
+    ) as exc:
+        print(f"cached terms: unavailable ({exc})")
+    else:
+        print(f"cached terms: {cached_terms:,}")
     if definition.description:
         print(f"description: {definition.description}")
 

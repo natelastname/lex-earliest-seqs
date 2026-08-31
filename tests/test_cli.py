@@ -1,6 +1,8 @@
 import pyarrow.parquet as pq
 import pytest
 
+from lex_earliest_seqs import registry
+from lex_earliest_seqs.cache import cache_path_for
 from lex_earliest_seqs.cli import app
 
 
@@ -18,6 +20,43 @@ def test_list_command(capsys):
     output = capsys.readouterr().out
     assert "A336957" in output
     assert "A338833" in output
+
+
+def test_info_reports_zero_cached_terms_when_cache_is_absent(tmp_path, capsys):
+    _run_cli(["info", "ew", "--cache-dir", str(tmp_path)])
+
+    output = capsys.readouterr().out
+    assert "cached terms: 0" in output
+
+
+def test_info_reports_cached_term_count(tmp_path, capsys):
+    _run_cli(
+        [
+            "compute",
+            "ew",
+            "7",
+            "--cache-dir",
+            str(tmp_path),
+            "--no-progress",
+        ]
+    )
+    capsys.readouterr()
+
+    _run_cli(["info", "ew", "--cache-dir", str(tmp_path)])
+
+    output = capsys.readouterr().out
+    assert "cached terms: 7" in output
+
+
+def test_info_reports_unavailable_for_corrupt_cache(tmp_path, capsys):
+    cache_path = cache_path_for(registry.resolve("ew"), tmp_path)
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    cache_path.write_bytes(b"not a pickle")
+
+    _run_cli(["info", "ew", "--cache-dir", str(tmp_path)])
+
+    output = capsys.readouterr().out
+    assert "cached terms: unavailable" in output
 
 
 def test_terms_command_without_cache(capsys):
