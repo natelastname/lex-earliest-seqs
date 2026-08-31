@@ -1,0 +1,36 @@
+name: Validate info cache count
+
+on:
+  push:
+    branches:
+      - feature/info-cache-count-20260830
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.13'
+          enable-cache: true
+      - name: Install
+        run: uv sync --locked --all-groups
+      - name: Test
+        run: uv run pytest
+      - name: Check changed code
+        run: |
+          uv run ruff check --no-fix src/lex_earliest_seqs/cli.py tests/test_cli.py
+          uv run black --check tests/test_cli.py
+          uv run basedpyright src/lex_earliest_seqs/cli.py tests/test_cli.py
+      - name: Smoke info cache count
+        run: |
+          CACHE_DIR="$(mktemp -d)"
+          uv run lex-earliest-seqs info ew --cache-dir "$CACHE_DIR" | grep -F 'cached terms: 0'
+          uv run lex-earliest-seqs compute ew 12 --cache-dir "$CACHE_DIR" --no-progress
+          uv run lex-earliest-seqs info ew --cache-dir "$CACHE_DIR" | grep -F 'cached terms: 12'
