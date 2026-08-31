@@ -131,7 +131,13 @@ lex-earliest-seqs info A399457
 ```
 
 This prints the ID, name, OEIS number, offset, object space, cache versions,
-registered projections, and description.
+registered projections, cached term count, and description. If the sequence has
+no cache, `cached terms` is reported as `0`. Use `--cache-dir` to inspect a
+non-default cache directory:
+
+```console
+lex-earliest-seqs info ew --cache-dir ./sequence-cache
+```
 
 ### Compute/cache a prefix
 
