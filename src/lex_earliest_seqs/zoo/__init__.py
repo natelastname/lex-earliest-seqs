@@ -5,6 +5,13 @@ from __future__ import annotations
 from ..core import SequenceRegistry
 from .binary_enots_wolley import BINARY_ENOTS_WOLLEY, BinaryEnotsWolleyGenerator
 from .enots_wolley import ENOTS_WOLLEY, EnotsWolleyGenerator
+from .even_index_prime_enots_wolley import (
+    EVEN_INDEX_PRIME_ENOTS_WOLLEY,
+    EvenIndexPrimeEnotsWolleyGenerator,
+    EvenIndexPrimePolicy,
+    ReferenceEvenIndexPrimeEnotsWolleyGenerator,
+    is_even_index_prime,
+)
 from .factor_restricted_enots_wolley import (
     EWFactorPolicy,
     FactorRestrictedEnotsWolleyDefinition,
@@ -42,14 +49,18 @@ __all__ = [
     "BIPRIMARY_ENOTS_WOLLEY",
     "BinaryEnotsWolleyGenerator",
     "ENOTS_WOLLEY",
+    "EVEN_INDEX_PRIME_ENOTS_WOLLEY",
     "EWFactorPolicy",
     "EXACT_TRIPRIMARY_ENOTS_WOLLEY",
     "EnotsWolleyGenerator",
+    "EvenIndexPrimeEnotsWolleyGenerator",
+    "EvenIndexPrimePolicy",
     "FORCED_SQUAREFREE_ENOTS_WOLLEY",
     "FactorRestrictedEnotsWolleyDefinition",
     "FactorRestrictedEnotsWolleyGenerator",
     "ForcedSquarefreeEnotsWolleyGenerator",
     "PRIMARY_ENOTS_WOLLEY_DEFINITIONS",
+    "ReferenceEvenIndexPrimeEnotsWolleyGenerator",
     "ReferenceFactorRestrictedEnotsWolleyGenerator",
     "SQUAREFREE_EXACT_TRIPRIMARY_ENOTS_WOLLEY",
     "SQUAREFREE_SEMIPRIME_ENOTS_WOLLEY",
@@ -63,6 +74,7 @@ __all__ = [
     "X000004_POLICY",
     "X000005_POLICY",
     "big_omega",
+    "is_even_index_prime",
     "make_factor_restricted_enots_wolley_definition",
     "omega",
     "register_builtins",
@@ -75,3 +87,4 @@ def register_builtins(registry: SequenceRegistry) -> None:
     registry.register(FORCED_SQUAREFREE_ENOTS_WOLLEY)
     for definition in PRIMARY_ENOTS_WOLLEY_DEFINITIONS:
         registry.register(definition)
+    registry.register(EVEN_INDEX_PRIME_ENOTS_WOLLEY)
