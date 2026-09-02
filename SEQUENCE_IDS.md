@@ -14,5 +14,6 @@ Sequences that are not on the OEIS use a local six-digit `X`-number as the canon
 | `X000003` | `omega(n) in {2, 3}`, squarefree |
 | `X000004` | `omega(n) = 3`, multiplicity allowed |
 | `X000005` | `omega(n) = 3`, squarefree |
+| `X000006` | divisible by at least one even-indexed prime `p_2, p_4, p_6, ...` |
 
-Here `omega(n)` denotes the number of **distinct** prime factors. The independent `squarefree` flag controls whether repeated prime exponents are forbidden.
+Here `omega(n)` denotes the number of **distinct** prime factors. The independent `squarefree` flag controls whether repeated prime exponents are forbidden. For `X000006`, odd-indexed primes remain allowed as cofactors; they simply do not make a term eligible by themselves.
