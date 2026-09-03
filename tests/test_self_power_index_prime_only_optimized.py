@@ -6,7 +6,9 @@ from lex_earliest_seqs.zoo.self_power_index_prime_only_optimized import (
 )
 
 
-def test_precomputed_self_power_prime_coordinates_are_used_without_nth_prime(monkeypatch):
+def test_precomputed_self_power_prime_coordinates_are_used_without_nth_prime(
+    monkeypatch,
+):
     def fail_nth_prime(_index):
         raise AssertionError("precomputed self-power coordinate called nth_prime")
 
