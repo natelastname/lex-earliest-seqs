@@ -10,6 +10,7 @@ from lex_earliest_seqs.zoo.full_return_enots_wolley import (
     FULL_RETURN_EW_3_5,
     FullReturnEnotsWolleyGenerator,
     ReferenceFullReturnEnotsWolleyGenerator,
+    _multiplier_introduces_new_prime,
     full_return_candidate_allowed,
     full_return_restriction_active,
     make_full_return_enots_wolley_definition,
@@ -31,6 +32,18 @@ def test_full_return_predicate_uses_only_immediately_previous_term():
     assert not full_return_restriction_active(30, p, q)
     assert full_return_candidate_allowed(14, 30, p, q)
     assert full_return_candidate_allowed(21, 30, p, q)
+
+
+def test_multiplier_new_prime_test_is_exact_for_stream_cofactors():
+    previous_primes = frozenset({2, 3, 7})
+    for multiplier in range(1, 500):
+        stripped = multiplier
+        for prime in previous_primes:
+            while stripped % prime == 0:
+                stripped //= prime
+        assert _multiplier_introduces_new_prime(multiplier, previous_primes) == (
+            stripped > 1
+        )
 
 
 @pytest.mark.parametrize(
@@ -102,19 +115,22 @@ def test_optimized_generator_matches_direct_definition(pair):
     optimized = FullReturnEnotsWolleyGenerator(p=p, q=q)
     reference = ReferenceFullReturnEnotsWolleyGenerator(p=p, q=q)
 
-    optimized.extend_to(2_000)
-    reference.extend_to(2_000)
+    optimized.extend_to(5_000)
+    reference.extend_to(5_000)
 
     assert optimized.terms == reference.terms
     assert optimized.used == set(optimized.terms)
     assert optimized.unused_multiplier_successors
+    # The specialized hot path derives radicals directly from prime supports;
+    # it must not allocate ordinary EW's dense candidate-value radical table.
+    assert optimized.radicals is None
 
 
 @pytest.mark.parametrize("pair", [(2, 3), (2, 5), (3, 5)])
 def test_every_target_return_after_one_free_term_is_full(pair):
     p, q = pair
     generator = FullReturnEnotsWolleyGenerator(p=p, q=q)
-    generator.extend_to(2_000)
+    generator.extend_to(5_000)
 
     for index in range(2, len(generator.terms)):
         previous = generator.terms[index - 1]
