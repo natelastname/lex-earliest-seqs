@@ -22,11 +22,11 @@ jobs:
             echo 'optional/checkpoint nth-prime backend remnants remain' >&2
             exit 1
           fi
-      - name: Check lint and imports
+      - name: Check lint and imports without modifying checkout
         run: |
-          uv run ruff check src tests
+          uv run ruff check --no-fix src tests
           uv run python -m compileall -q src tests
-      - name: Direct primecountpy probes
+      - name: Direct primecountpy nth-prime probes
         run: |
           uv run python - <<'PY'
           from time import perf_counter
@@ -44,15 +44,29 @@ jobs:
               assert value == wanted
               print(f'p_{index}={value} elapsed={perf_counter()-start:.6f}', flush=True)
           PY
-      - name: Scale X000014
+      - name: Benchmark 128-bit prime counting near p_(15^15)
         run: |
-          /usr/bin/time -f 'X000014 elapsed=%e maxrss_kb=%M' timeout 8m \
+          timeout 5m uv run python - <<'PY'
+          from time import perf_counter
+          from primecountpy.primecount import prime_pi_128
+
+          for value in (
+              18_971_766_861_780_490_000,
+              19_409_660_752_161_350_000,
+          ):
+              start = perf_counter()
+              count = prime_pi_128(value)
+              print(f'pi({value})={count} elapsed={perf_counter()-start:.6f}', flush=True)
+          PY
+      - name: Scale X000014 within direct nth-prime range
+        run: |
+          /usr/bin/time -f 'X000014 elapsed=%e maxrss_kb=%M' timeout 2m \
             uv run python - <<'PY'
           from time import perf_counter
           from lex_earliest_seqs import registry
 
           generator = registry.resolve('X000014').generator_factory()
-          for count in (100, 1_000, 10_000):
+          for count in (100, 1_000):
               start = perf_counter()
               generator.extend_to(count)
               max_index = max(
