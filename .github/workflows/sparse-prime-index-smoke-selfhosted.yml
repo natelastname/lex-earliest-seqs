@@ -20,8 +20,13 @@ jobs:
       - name: Sync environment
         run: uv sync --locked
       - name: Run sparse-family tests
-        run: uv run pytest tests/test_sparse_prime_index_only_enots_wolley.py
-      - name: Compute first-pass finite prefixes
+        run: |
+          uv run pytest \
+            tests/test_sparse_prime_index_only_enots_wolley.py \
+            tests/test_scalable_prime_lookup.py
+      - name: Compute finite prefixes with portable backend
+        env:
+          LEX_EARLIEST_SEQS_DISABLE_PRIMESIEVE: '1'
         run: |
           set -euxo pipefail
 
@@ -32,5 +37,5 @@ jobs:
             time uv run lex-earliest-seqs compute "$seq" 1000 --no-cache --no-progress
           done
 
-          echo '=== X000014 first 20 ==='
-          time uv run lex-earliest-seqs terms X000014 20 --no-cache --no-progress
+          echo '=== X000014 compute 100 ==='
+          time uv run lex-earliest-seqs compute X000014 100 --no-cache --no-progress
