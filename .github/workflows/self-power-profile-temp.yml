@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   profile:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
@@ -54,8 +54,10 @@ jobs:
               )
           PY
           done
-      - name: Time suspected multiplier optimization tests
-        continue-on-error: true
+      - name: Run relevant tests with durations
         run: |
-          timeout 10m uv run pytest -q --durations=20 \
+          uv run pytest -q --durations=20 \
+            tests/test_self_power_index_prime_only_optimized.py \
+            tests/test_sparse_prime_index_only_enots_wolley.py \
+            tests/test_scalable_prime_lookup.py \
             tests/test_prime_coordinate_multiplier_optimization.py
