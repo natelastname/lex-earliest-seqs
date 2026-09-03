@@ -1,0 +1,74 @@
+name: Sparse prime-index generator profile self-hosted
+
+on:
+  push:
+    branches:
+      - feature/sparse-prime-coordinate-ew-20260903
+    paths:
+      - '.github/workflows/sparse-prime-index-profile-selfhosted.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: sparse-prime-index-profile-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  profile:
+    runs-on: self-hosted
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Sync environment
+        run: uv sync --locked
+      - name: Optimized profiles
+        run: |
+          set -euo pipefail
+          uv run python - <<'PY'
+          import cProfile
+          import io
+          import pstats
+          import time
+
+          from lex_earliest_seqs.zoo.sparse_prime_index_only_enots_wolley import (
+              SparsePrimeIndexOnlyEnotsWolleyGenerator,
+          )
+
+          cases = (
+              ('square', 20_000),
+              ('power_of_two', 20_000),
+              ('self_power', 1_000),
+          )
+          for family, count in cases:
+              generator = SparsePrimeIndexOnlyEnotsWolleyGenerator(family=family)
+              profiler = cProfile.Profile()
+              start = time.perf_counter()
+              profiler.enable()
+              generator.extend_to(count)
+              profiler.disable()
+              elapsed = time.perf_counter() - start
+              print(
+                  f'PROFILE family={family} count={count} seconds={elapsed:.6f} '
+                  f'multipliers={len(generator.multiplier_values)} '
+                  f'opened_primes={generator.next_allowed_position} '
+                  f'known_primes={len(generator.retained_primes)} '
+                  f'max_term={max(generator.terms)}',
+                  flush=True,
+              )
+              stream = io.StringIO()
+              pstats.Stats(profiler, stream=stream).strip_dirs().sort_stats('cumulative').print_stats(20)
+              print(stream.getvalue(), flush=True)
+          PY
+      - name: Probe primesieve Python package
+        continue-on-error: true
+        run: |
+          set -euxo pipefail
+          uv run --with 'primesieve>=2.3.4,<3' python - <<'PY'
+          import time
+          import primesieve
+
+          for n in (823_543, 16_777_216, 387_420_489):
+              start = time.perf_counter()
+              value = primesieve.nth_prime(n)
+              print(f'n={n} p_n={value} seconds={time.perf_counter() - start:.6f}', flush=True)
+          PY

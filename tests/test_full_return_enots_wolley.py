@@ -50,7 +50,7 @@ def test_multiplier_new_prime_test_is_exact_for_stream_cofactors():
     ("sequence_id", "alias", "pair", "expected"),
     [
         (
-            "X000012",
+            "X000015",
             "fr-ew-2-3",
             (2, 3),
             [
@@ -62,7 +62,7 @@ def test_multiplier_new_prime_test_is_exact_for_stream_cofactors():
             ],
         ),
         (
-            "X000013",
+            "X000016",
             "fr-ew-2-5",
             (2, 5),
             [
@@ -74,7 +74,7 @@ def test_multiplier_new_prime_test_is_exact_for_stream_cofactors():
             ],
         ),
         (
-            "X000014",
+            "X000017",
             "fr-ew-3-5",
             (3, 5),
             [
@@ -104,9 +104,9 @@ def test_registered_full_return_prefixes(sequence_id, alias, pair, expected):
 
 
 def test_registered_definition_constants_have_expected_ids():
-    assert FULL_RETURN_EW_2_3.id == "X000012"
-    assert FULL_RETURN_EW_2_5.id == "X000013"
-    assert FULL_RETURN_EW_3_5.id == "X000014"
+    assert FULL_RETURN_EW_2_3.id == "X000015"
+    assert FULL_RETURN_EW_2_5.id == "X000016"
+    assert FULL_RETURN_EW_3_5.id == "X000017"
 
 
 @pytest.mark.parametrize("pair", [(2, 3), (2, 5), (3, 5), (2, 7), (5, 7)])

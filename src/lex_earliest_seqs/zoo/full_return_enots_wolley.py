@@ -332,13 +332,13 @@ def make_full_return_enots_wolley_definition(
 
 
 FULL_RETURN_EW_2_3 = make_full_return_enots_wolley_definition(
-    id="X000012", p=2, q=3, aliases=("full-return-ew-2-3", "fr-ew-2-3")
+    id="X000015", p=2, q=3, aliases=("full-return-ew-2-3", "fr-ew-2-3")
 )
 FULL_RETURN_EW_2_5 = make_full_return_enots_wolley_definition(
-    id="X000013", p=2, q=5, aliases=("full-return-ew-2-5", "fr-ew-2-5")
+    id="X000016", p=2, q=5, aliases=("full-return-ew-2-5", "fr-ew-2-5")
 )
 FULL_RETURN_EW_3_5 = make_full_return_enots_wolley_definition(
-    id="X000014", p=3, q=5, aliases=("full-return-ew-3-5", "fr-ew-3-5")
+    id="X000017", p=3, q=5, aliases=("full-return-ew-3-5", "fr-ew-3-5")
 )
 
 FULL_RETURN_ENOTS_WOLLEY_DEFINITIONS = (
