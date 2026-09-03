@@ -66,8 +66,8 @@ def _multiplier_introduces_new_prime(
     """Test EW new-prime introduction without factoring the candidate.
 
     A candidate stream has the form ``r * multiplier`` where ``r`` is already
-    in the predecessor support.  Therefore the candidate introduces a new prime
-    exactly when the multiplier has a prime factor outside that support.  Strip
+    in the predecessor support. Therefore the candidate introduces a new prime
+    exactly when the multiplier has a prime factor outside that support. Strip
     all predecessor primes from the multiplier; a nontrivial remainder is
     equivalent to the required new prime.
     """
@@ -125,20 +125,20 @@ class FullReturnEnotsWolleyGenerator(EnotsWolleyGenerator):
     Two optimizations matter for this family.
 
     First, candidate new-prime testing never uses ordinary EW's dense radical
-    table.  For ``candidate = r*m`` the stream prime ``r`` is already in the
+    table. For ``candidate = r*m`` the stream prime ``r`` is already in the
     predecessor support, so stripping predecessor primes from ``m`` is an exact
-    new-prime test.  This avoids maintaining a dense table out to potentially
+    new-prime test. This avoids maintaining a dense table out to potentially
     very large candidate values.
 
     Second, when the predecessor is target-free, an ordinary stream is split
     into two disjoint exact substreams: target-free candidates and full ``p*q``
-    candidates.  One-sided target candidates are therefore never put on the
-    candidate heap.  If the local lag-two/partition exclusions already contain
+    candidates. One-sided target candidates are therefore never put on the
+    candidate heap. If the local lag-two/partition exclusions already contain
     either target prime, a full candidate is impossible and only the target-free
     substream is generated.
 
     Existing generator caches remain continuation-compatible: inherited
-    successor maps still encode only permanently used products.  Full substreams
+    successor maps still encode only permanently used products. Full substreams
     use their composite fixed factor ``r*p*q`` as an additional successor-map
     key, which cannot collide with the prime keys used by ordinary streams.
     """
@@ -148,6 +148,23 @@ class FullReturnEnotsWolleyGenerator(EnotsWolleyGenerator):
 
     def __post_init__(self) -> None:
         self.p, self.q = _validate_pair(self.p, self.q)
+
+    def extend_to(self, count: int) -> None:
+        """Extend without allocating the ordinary EW radical table."""
+
+        if count < 0:
+            raise ValueError("count must be nonnegative")
+        if count <= len(self.terms):
+            return
+        if len(self.terms) < 2:
+            raise RuntimeError("FullReturnEnotsWolleyGenerator state is missing initial terms")
+
+        while len(self.terms) < count:
+            candidate = self._next_candidate()
+            self.terms.append(candidate)
+            self.used.add(candidate)
+            while self.smallest_unused in self.used:
+                self.smallest_unused += 1
 
     def _next_candidate(self) -> int:
         previous = self.terms[-1]
@@ -170,8 +187,8 @@ class FullReturnEnotsWolleyGenerator(EnotsWolleyGenerator):
         #    automatic_new_prime)
         #
         # Ordinary/target-free streams have fixed_factor equal to the shared
-        # stream prime.  A full-return substream has fixed_factor=r*p*q and its
-        # multiplier is the remaining cofactor.  Since p and q are absent from
+        # stream prime. A full-return substream has fixed_factor=r*p*q and its
+        # multiplier is the remaining cofactor. Since p and q are absent from
         # a target-free predecessor, every such full candidate automatically
         # introduces new primes.
         heap: list[tuple[int, int, int, int, bool]] = []
@@ -214,9 +231,9 @@ class FullReturnEnotsWolleyGenerator(EnotsWolleyGenerator):
                     False,
                 )
             else:
-                # Target-free branch.  Folding p*q into the coprimality
+                # Target-free branch. Folding p*q into the coprimality
                 # exclusion enumerates exactly the candidates containing neither
-                # target prime.  Duplicated factors are harmless to gcd().
+                # target prime. Duplicated factors are harmless to gcd().
                 free_forbidden = forbidden_radical * target_product
                 lower_multiplier = max(
                     1,
@@ -229,7 +246,7 @@ class FullReturnEnotsWolleyGenerator(EnotsWolleyGenerator):
                     False,
                 )
 
-                # Full-return branch.  It exists only when lag-two and the
+                # Full-return branch. It exists only when lag-two and the
                 # disjoint stream partition do not already forbid p or q.
                 if gcd(forbidden_radical, target_product) == 1:
                     full_factor = stream_prime * target_product
@@ -262,7 +279,7 @@ class FullReturnEnotsWolleyGenerator(EnotsWolleyGenerator):
             if introduces_new_prime:
                 return candidate
 
-            # _next_stream_multiplier already skips globally used products.  A
+            # _next_stream_multiplier already skips globally used products. A
             # new-prime failure is state-local, so advance only this heap stream
             # and do not install a permanent deletion for the rejected value.
             multiplier = self._next_stream_multiplier(
