@@ -5,13 +5,13 @@ The retained prime indices for X000014 are fixed:
     1^1, 2^2, 3^3, 4^4, ...
 
 Candidate arbitration sometimes has to inspect a future retained prime merely to
-prove that it cannot beat the current best candidate.  For this family the
+prove that it cannot beat the current best candidate. For this family the
 indices grow so quickly that such a losing probe can dominate the whole run:
 without an optional primecount/primesieve backend, asking for p_(9^9) means a
 portable segmented sieve out to the 387,420,489th prime.
 
 The first ten self-power coordinates are tiny static mathematical data compared
-with a persisted generator state.  Keeping them here makes those exact lookups
+with a persisted generator state. Keeping them here makes those exact lookups
 constant-time on every installation, while the generic scalable nth-prime backend
 remains the fallback after the table is exhausted.
 """
@@ -27,8 +27,8 @@ from .sparse_prime_index_candidate_optimized import (
 )
 from .sparse_prime_index_only_enots_wolley import PrimeIndexFamily
 
-# Exact p_(i^i) for i = 1,...,10.  These values were independently checked by
-# verifying prime_pi(value) == i**i.  Position j corresponds to i = j + 1.
+# Exact p_(i^i) for i = 1,...,10. These values were independently checked by
+# verifying prime_pi(value) == i**i. Position j corresponds to i = j + 1.
 SELF_POWER_RETAINED_PRIME_PREFIX: tuple[int, ...] = (
     2,
     7,
@@ -84,5 +84,4 @@ class SelfPowerIndexPrimeOnlyEnotsWolleyGenerator(
 SELF_POWER_INDEX_PRIME_ONLY_ENOTS_WOLLEY = replace(
     BASE_DEFINITION,
     generator_factory=SelfPowerIndexPrimeOnlyEnotsWolleyGenerator,
-    generator_version=4,
 )
