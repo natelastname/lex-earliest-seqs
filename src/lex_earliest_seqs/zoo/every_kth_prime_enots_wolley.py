@@ -12,7 +12,7 @@ from ..object_space import PositiveIntegers
 from ..projections import prime_exponent_projection
 from .enots_wolley import is_candidate, prime_support
 from .factor_restricted_enots_wolley import FactorRestrictedEnotsWolleyGenerator
-from .scalable_prime_lookup import remember_nth_prime, scalable_nth_prime
+from .scalable_prime_lookup import scalable_nth_prime
 
 # p_1 = 2, p_2 = 3, p_3 = 5, ... .  The table stores the one-based prime
 # index at prime entries and 0 at composites.  It is derived process-local state
@@ -22,7 +22,7 @@ _prime_index_limit = 1
 _indexed_primes: list[int] = []
 
 # Beyond this point a dense inverse-index table is wasteful when the caller only
-# needs one p_n.  Sparse-coordinate generators use the bounded-memory backend.
+# needs one isolated p_n. Sparse-coordinate generators use primecountpy instead.
 _SCALABLE_NTH_PRIME_THRESHOLD = 250_000
 
 
@@ -81,17 +81,13 @@ def nth_prime(index: int) -> int:
     """Return p_index for a positive one-based prime index.
 
     Small indices use the shared dense table because it also supports inverse
-    prime-index queries.  Large isolated indices use the optional primesieve or
-    bounded-memory segmented backend from :mod:`scalable_prime_lookup`.
-    Exact dense results seed that scalable backend, so a later sparse jump starts
-    at the last known prime instead of recounting from two.
+    prime-index queries. Large isolated indices go directly to the required
+    :mod:`primecountpy` backend via :func:`scalable_nth_prime`.
     """
 
     _validate_k(index)
     if len(_indexed_primes) >= index:
-        value = _indexed_primes[index - 1]
-        remember_nth_prime(index, value)
-        return value
+        return _indexed_primes[index - 1]
     if index > _SCALABLE_NTH_PRIME_THRESHOLD:
         return scalable_nth_prime(index)
 
@@ -99,9 +95,7 @@ def nth_prime(index: int) -> int:
     while len(_indexed_primes) < index:
         _ensure_prime_index_table(target)
         target *= 2
-    value = _indexed_primes[index - 1]
-    remember_nth_prime(index, value)
-    return value
+    return _indexed_primes[index - 1]
 
 
 def is_every_kth_prime(value: int, k: int) -> bool:
@@ -124,11 +118,7 @@ class EveryKthPrimePolicy:
     def allows(self, value: int) -> bool:
         if value < 2:
             return False
-        support = prime_support(value)
-        if not support:
-            return False
-        _ensure_prime_index_table(max(support))
-        return any(int(_prime_index_table[prime]) % self.k == 0 for prime in support)
+        return any(is_every_kth_prime(prime, self.k) for prime in prime_support(value))
 
 
 @dataclass
@@ -142,9 +132,8 @@ class ReferenceEveryKthPrimeEnotsWolleyGenerator:
 
     def __post_init__(self) -> None:
         self.policy = EveryKthPrimePolicy(self.k)
-        seed = nth_prime(self.k)
-        self.terms = [1, seed]
-        self.used = {1, seed}
+        self.terms = [1, 2]
+        self.used = {1, 2}
 
     def _next_candidate(self) -> int:
         previous = self.terms[-1]
@@ -164,12 +153,6 @@ class ReferenceEveryKthPrimeEnotsWolleyGenerator:
             raise ValueError("count must be nonnegative")
         if count <= len(self.terms):
             return
-        if len(self.terms) < 2:
-            raise RuntimeError(
-                "ReferenceEveryKthPrimeEnotsWolleyGenerator state is missing "
-                "initial terms"
-            )
-
         while len(self.terms) < count:
             candidate = self._next_candidate()
             self.terms.append(candidate)
@@ -177,92 +160,81 @@ class ReferenceEveryKthPrimeEnotsWolleyGenerator:
 
 
 @dataclass
-class EveryKthPrimeEnotsWolleyGenerator(FactorRestrictedEnotsWolleyGenerator):
-    """Optimized every-k-th-prime EW generator using persistent candidate streams.
+class EveryKthPrimeEnotsWolleyGenerator:
+    """History-aware candidate merge for the contains-a-distinguished-prime family."""
 
-    ``k`` is arbitrary.  The allowed prime coordinates are
-    ``p_k, p_{2k}, p_{3k}, ...``.  Every generated term must contain at least one
-    such prime, while all other primes remain legal as cofactors and may carry
-    EW adjacency.
-
-    The inherited stream machinery only requires a global, history-independent
-    ``policy.allows(value)`` predicate, so no k-specific candidate algorithm is
-    needed.  Fresh instances seed themselves with ``1, p_k``.
-    """
-
+    k: int = 2
     policy: EveryKthPrimePolicy = field(init=False)
     terms: list[int] = field(init=False)
     used: set[int] = field(init=False)
-    multiplier_successors: dict[int, dict[int, int]] = field(
-        default_factory=dict,
-        init=False,
-        repr=False,
-    )
-    k: int = 2
 
     def __post_init__(self) -> None:
         self.policy = EveryKthPrimePolicy(self.k)
-        seed = nth_prime(self.k)
-        self.terms = [1, seed]
-        self.used = {1, seed}
+        self.terms = [1, 2]
+        self.used = {1, 2}
+
+    def _next_candidate(self) -> int:
+        previous = self.terms[-1]
+        two_back = self.terms[-2]
+        candidate = 2
+        while True:
+            if (
+                candidate not in self.used
+                and self.policy.allows(candidate)
+                and is_candidate(candidate, previous, two_back)
+            ):
+                return candidate
+            candidate += 1
+
+    def extend_to(self, count: int) -> None:
+        if count < 0:
+            raise ValueError("count must be nonnegative")
+        if count <= len(self.terms):
+            return
+        while len(self.terms) < count:
+            candidate = self._next_candidate()
+            self.terms.append(candidate)
+            self.used.add(candidate)
 
 
 def make_every_kth_prime_enots_wolley_definition(
-    *,
-    id: str,
     k: int,
+    *,
+    sequence_id: str,
     name: str,
     aliases: tuple[str, ...] = (),
-) -> SequenceDefinition[int]:
-    """Build one registered member of the general every-k-th-prime EW family."""
+) -> SequenceDefinition:
+    """Construct one registered every-kth-prime EW definition."""
 
     _validate_k(k)
-    seed = nth_prime(k)
-    return SequenceDefinition[int](
-        id=id,
-        oeis=None,
+    return SequenceDefinition(
+        id=sequence_id,
         name=name,
-        aliases=aliases,
+        oeis=None,
         generator_factory=partial(EveryKthPrimeEnotsWolleyGenerator, k=k),
+        aliases=aliases,
+        projections={"prime-exponents": prime_exponent_projection},
         generator_version=1,
-        definition_version=1,
-        offset=1,
-        object_space=PositiveIntegers(),
-        projections={"prime-exponents": prime_exponent_projection()},
-        description=(
-            f"Lexicographically earliest sequence starting 1, {seed} and obeying "
-            "the Enots--Wolley rule, with every later term required to be "
-            f"divisible by at least one prime p_j whose one-based index j is a "
-            f"multiple of {k}. Other primes remain legal as cofactors."
-        ),
     )
 
 
 EVERY_SECOND_PRIME_ENOTS_WOLLEY = make_every_kth_prime_enots_wolley_definition(
-    id="X000006",
-    k=2,
-    name="Every-second-prime Enots--Wolley",
-    aliases=(
-        "every-second-prime-ew",
-        "every-2nd-prime-ew",
-        "even-index-prime-ew",
-        "even-prime-index-ew",
-        "alternating-prime-ew",
-    ),
+    2,
+    sequence_id="X000006",
+    name="Every second prime Enots--Wolley",
+    aliases=("every-second-prime-ew",),
 )
-
 EVERY_THIRD_PRIME_ENOTS_WOLLEY = make_every_kth_prime_enots_wolley_definition(
-    id="X000007",
-    k=3,
-    name="Every-third-prime Enots--Wolley",
-    aliases=("every-third-prime-ew", "every-3rd-prime-ew"),
+    3,
+    sequence_id="X000007",
+    name="Every third prime Enots--Wolley",
+    aliases=("every-third-prime-ew",),
 )
-
 EVERY_FOURTH_PRIME_ENOTS_WOLLEY = make_every_kth_prime_enots_wolley_definition(
-    id="X000008",
-    k=4,
-    name="Every-fourth-prime Enots--Wolley",
-    aliases=("every-fourth-prime-ew", "every-4th-prime-ew"),
+    4,
+    sequence_id="X000008",
+    name="Every fourth prime Enots--Wolley",
+    aliases=("every-fourth-prime-ew",),
 )
 
 EVERY_KTH_PRIME_ENOTS_WOLLEY_DEFINITIONS = (
