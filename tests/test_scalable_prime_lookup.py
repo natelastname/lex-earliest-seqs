@@ -26,14 +26,19 @@ def test_segmented_fallback_handles_out_of_order_queries(monkeypatch):
     assert scalable_prime_lookup.scalable_nth_prime(20_000) == 224_737
 
 
-def test_optional_backend_is_used_when_available(monkeypatch):
-    calls: list[int] = []
+def test_optional_backend_advances_from_nearest_known_prime(monkeypatch):
+    calls: list[tuple[int, int]] = []
 
     class FakePrimeSieve:
         @staticmethod
-        def nth_prime(index: int) -> int:
-            calls.append(index)
-            return 999_983
+        def nth_prime(index_gap: int, start: int = 0) -> int:
+            calls.append((index_gap, start))
+            values = {
+                (9, 2): 29,
+                (90, 29): 541,
+                (900, 541): 7_919,
+            }
+            return values[(index_gap, start)]
 
     scalable_prime_lookup._reset_for_tests()
     monkeypatch.delenv("LEX_EARLIEST_SEQS_DISABLE_PRIMESIEVE", raising=False)
@@ -43,5 +48,7 @@ def test_optional_backend_is_used_when_available(monkeypatch):
         lambda: FakePrimeSieve,
     )
 
-    assert scalable_prime_lookup.scalable_nth_prime(78_498) == 999_983
-    assert calls == [78_498]
+    assert scalable_prime_lookup.scalable_nth_prime(10) == 29
+    assert scalable_prime_lookup.scalable_nth_prime(100) == 541
+    assert scalable_prime_lookup.scalable_nth_prime(1_000) == 7_919
+    assert calls == [(9, 2), (90, 29), (900, 541)]
