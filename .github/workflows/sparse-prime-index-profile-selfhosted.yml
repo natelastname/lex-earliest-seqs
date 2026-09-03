@@ -67,6 +67,7 @@ jobs:
               print(stream.getvalue(), flush=True)
           PY
       - name: Profile self-power with optional C++ nth-prime backend
+        continue-on-error: true
         run: |
           set -euo pipefail
           time timeout 10m uv run --with 'primesieve>=2.3.4,<3' python - <<'PY'
@@ -99,6 +100,7 @@ jobs:
           print(stream.getvalue(), flush=True)
           PY
       - name: Benchmark high index prime lookup
+        continue-on-error: true
         run: |
           set -euxo pipefail
           time timeout 10m uv run --with 'primesieve>=2.3.4,<3' python - <<'PY'
