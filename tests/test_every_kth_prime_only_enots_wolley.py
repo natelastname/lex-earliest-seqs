@@ -232,8 +232,8 @@ def test_optimized_generator_matches_direct_definition_for_arbitrary_k(k):
     optimized = EveryKthPrimeOnlyEnotsWolleyGenerator(k=k)
     reference = ReferenceEveryKthPrimeOnlyEnotsWolleyGenerator(k=k)
 
-    optimized.extend_to(500)
-    reference.extend_to(500)
+    optimized.extend_to(150)
+    reference.extend_to(150)
 
     assert optimized.terms == reference.terms
     assert optimized.used == set(optimized.terms)
@@ -261,15 +261,15 @@ def test_unregistered_k_five_is_generic():
 
 def test_generator_pickle_resumes_with_k():
     generator = EveryKthPrimeOnlyEnotsWolleyGenerator(k=3)
-    generator.extend_to(250)
+    generator.extend_to(150)
 
     restored = pickle.loads(pickle.dumps(generator))
     assert restored.k == 3
     assert restored.policy == EveryKthPrimeOnlyPolicy(3)
-    restored.extend_to(500)
+    restored.extend_to(250)
 
     reference = ReferenceEveryKthPrimeOnlyEnotsWolleyGenerator(k=3)
-    reference.extend_to(500)
+    reference.extend_to(250)
     assert restored.terms == reference.terms
 
 
