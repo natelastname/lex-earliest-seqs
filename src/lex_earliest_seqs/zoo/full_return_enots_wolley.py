@@ -46,42 +46,21 @@ def _validate_pair(p: int, q: int) -> tuple[int, int]:
 
 
 def target_free(value: int, p: int, q: int) -> bool:
-    """Return whether ``value`` is divisible by neither target prime."""
-
     return value % p != 0 and value % q != 0
 
 
 def full_return_restriction_active(previous: int, p: int, q: int) -> bool:
-    """Return whether the next target-touching term must be a full return."""
-
     return target_free(previous, p, q)
 
 
-def full_return_candidate_allowed(
-    value: int,
-    previous: int,
-    p: int,
-    q: int,
-) -> bool:
-    """Return whether ``value`` obeys the forced-full-return restriction.
-
-    If the predecessor contains ``p`` or ``q`` there is no additional
-    restriction. If the predecessor is target-free, target-free candidates and
-    full ``p*q`` candidates are allowed while candidates containing exactly one
-    target prime are not.
-    """
-
+def full_return_candidate_allowed(value: int, previous: int, p: int, q: int) -> bool:
     if not full_return_restriction_active(previous, p, q):
         return True
-    has_p = value % p == 0
-    has_q = value % q == 0
-    return has_p == has_q
+    return (value % p == 0) == (value % q == 0)
 
 
 @dataclass
 class ReferenceFullReturnEnotsWolleyGenerator:
-    """Slow direct scanner used as a correctness oracle for arbitrary pairs."""
-
     p: int = 2
     q: int = 3
     terms: list[int] = field(default_factory=lambda: [1, 2])
@@ -99,12 +78,7 @@ class ReferenceFullReturnEnotsWolleyGenerator:
             if (
                 candidate not in self.used
                 and is_candidate(candidate, previous, two_back)
-                and full_return_candidate_allowed(
-                    candidate,
-                    previous,
-                    self.p,
-                    self.q,
-                )
+                and full_return_candidate_allowed(candidate, previous, self.p, self.q)
             ):
                 return candidate
             candidate += 1
@@ -114,11 +88,6 @@ class ReferenceFullReturnEnotsWolleyGenerator:
             raise ValueError("count must be nonnegative")
         if count <= len(self.terms):
             return
-        if len(self.terms) < 2:
-            raise RuntimeError(
-                "ReferenceFullReturnEnotsWolleyGenerator state is missing initial terms"
-            )
-
         while len(self.terms) < count:
             candidate = self._next_candidate()
             self.terms.append(candidate)
@@ -129,14 +98,7 @@ class ReferenceFullReturnEnotsWolleyGenerator:
 
 @dataclass
 class FullReturnEnotsWolleyGenerator(EnotsWolleyGenerator):
-    """Optimized ordinary-EW streams with one state-local return restriction.
-
-    All history-aware EW stream machinery, including permanent deletion of used
-    products, is inherited unchanged. A full-return failure is state-dependent:
-    a one-sided target candidate rejected after a free predecessor can become
-    eligible later, so such failures are never installed in persistent successor
-    maps.
-    """
+    """Ordinary optimized EW streams plus the state-local full-return filter."""
 
     p: int = 2
     q: int = 3
@@ -155,15 +117,10 @@ class FullReturnEnotsWolleyGenerator(EnotsWolleyGenerator):
         shared_primes = tuple(sorted(prime_support(previous) - prime_support(two_back)))
         if not shared_primes:
             raise RuntimeError(
-                "full-return EW state has no predecessor prime disjoint from "
-                "the two-back term"
+                "full-return EW state has no predecessor prime disjoint from the two-back term"
             )
 
-        force_full_return = full_return_restriction_active(
-            previous,
-            self.p,
-            self.q,
-        )
+        force_full_return = full_return_restriction_active(previous, self.p, self.q)
 
         heap: list[tuple[int, int, int, int]] = []
         earlier_shared_product = 1
@@ -200,13 +157,13 @@ class FullReturnEnotsWolleyGenerator(EnotsWolleyGenerator):
             )
             return_allowed = True
             if force_full_return:
-                has_p = candidate % self.p == 0
-                has_q = candidate % self.q == 0
-                return_allowed = has_p == has_q
+                return_allowed = (candidate % self.p == 0) == (candidate % self.q == 0)
 
             if introduces_new_prime and return_allowed:
                 return candidate
 
+            # Full-return failures are local; only genuinely used products are
+            # permanently removed by the inherited successor structure.
             next_lower_bound = multiplier if candidate in self.used else multiplier + 1
             multiplier = self._next_stream_multiplier(
                 stream_prime,
@@ -234,8 +191,6 @@ def make_full_return_enots_wolley_definition(
     name: str | None = None,
     aliases: tuple[str, ...] = (),
 ) -> SequenceDefinition[int]:
-    """Build one registered member of the generic full-return EW family."""
-
     p, q = _validate_pair(p, q)
     return SequenceDefinition[int](
         id=id,
@@ -244,7 +199,6 @@ def make_full_return_enots_wolley_definition(
         aliases=aliases,
         generator_factory=partial(FullReturnEnotsWolleyGenerator, p=p, q=q),
         generator_version=1,
-        # Version 1 used the now-superseded two-free-term interpretation.
         definition_version=2,
         offset=1,
         object_space=PositiveIntegers(),
@@ -260,24 +214,13 @@ def make_full_return_enots_wolley_definition(
 
 
 FULL_RETURN_EW_2_3 = make_full_return_enots_wolley_definition(
-    id="X000012",
-    p=2,
-    q=3,
-    aliases=("full-return-ew-2-3", "fr-ew-2-3"),
+    id="X000012", p=2, q=3, aliases=("full-return-ew-2-3", "fr-ew-2-3")
 )
-
 FULL_RETURN_EW_2_5 = make_full_return_enots_wolley_definition(
-    id="X000013",
-    p=2,
-    q=5,
-    aliases=("full-return-ew-2-5", "fr-ew-2-5"),
+    id="X000013", p=2, q=5, aliases=("full-return-ew-2-5", "fr-ew-2-5")
 )
-
 FULL_RETURN_EW_3_5 = make_full_return_enots_wolley_definition(
-    id="X000014",
-    p=3,
-    q=5,
-    aliases=("full-return-ew-3-5", "fr-ew-3-5"),
+    id="X000014", p=3, q=5, aliases=("full-return-ew-3-5", "fr-ew-3-5")
 )
 
 FULL_RETURN_ENOTS_WOLLEY_DEFINITIONS = (
