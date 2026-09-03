@@ -1,3 +1,4 @@
+import pickle
 from dataclasses import dataclass, field
 
 import pytest
@@ -91,6 +92,25 @@ def test_generator_schema_mismatch_deletes_cache_and_restarts(tmp_path):
         cache_dir=tmp_path,
     )
     assert list(third.terms) == [2**100]
+
+
+def test_legacy_cache_format_is_deleted_and_restarts(tmp_path):
+    first = open_run(definition(), cache_dir=tmp_path)
+    first.ensure(2)
+    assert first.cache_path is not None
+    cache_path = first.cache_path
+
+    with cache_path.open("rb") as handle:
+        cached = pickle.load(handle)
+    cached.cache_format = 1
+    del cached.generator_schema
+    with cache_path.open("wb") as handle:
+        pickle.dump(cached, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    second = open_run(definition(), cache_dir=tmp_path)
+
+    assert list(second.terms) == []
+    assert not cache_path.exists()
 
 
 def test_strict_load_deletes_incompatible_cache(tmp_path):
