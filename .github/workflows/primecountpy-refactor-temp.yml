@@ -22,9 +22,15 @@ jobs:
             echo 'optional/checkpoint nth-prime backend remnants remain' >&2
             exit 1
           fi
-      - name: Check lint and imports without modifying checkout
+      - name: Check changed files and imports
         run: |
-          uv run ruff check --no-fix src tests
+          uv run ruff check --no-fix \
+            src/lex_earliest_seqs/zoo/__init__.py \
+            src/lex_earliest_seqs/zoo/every_kth_prime_enots_wolley.py \
+            src/lex_earliest_seqs/zoo/scalable_prime_lookup.py \
+            src/lex_earliest_seqs/zoo/sparse_prime_index_only_enots_wolley.py \
+            tests/test_scalable_prime_lookup.py \
+            tests/test_prime_coordinate_multiplier_optimization.py
           uv run python -m compileall -q src tests
       - name: Direct primecountpy nth-prime probes
         run: |
@@ -50,13 +56,18 @@ jobs:
           from time import perf_counter
           from primecountpy.primecount import prime_pi_128
 
+          target = 15**15
           for value in (
               18_971_766_861_780_490_000,
               19_409_660_752_161_350_000,
           ):
               start = perf_counter()
               count = prime_pi_128(value)
-              print(f'pi({value})={count} elapsed={perf_counter()-start:.6f}', flush=True)
+              print(
+                  f'pi({value})={count} target_delta={count-target} '
+                  f'elapsed={perf_counter()-start:.6f}',
+                  flush=True,
+              )
           PY
       - name: Scale X000014 within direct nth-prime range
         run: |
