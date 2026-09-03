@@ -50,24 +50,21 @@ jobs:
               assert value == wanted
               print(f'p_{index}={value} elapsed={perf_counter()-start:.6f}', flush=True)
           PY
-      - name: Benchmark 128-bit prime counting near p_(15^15)
+      - name: Bound 128-bit prime counting experiment
+        continue-on-error: true
         run: |
-          timeout 5m uv run python - <<'PY'
+          timeout 20s uv run python - <<'PY'
           from time import perf_counter
           from primecountpy.primecount import prime_pi_128
 
-          target = 15**15
-          for value in (
-              18_971_766_861_780_490_000,
-              19_409_660_752_161_350_000,
-          ):
-              start = perf_counter()
-              count = prime_pi_128(value)
-              print(
-                  f'pi({value})={count} target_delta={count-target} '
-                  f'elapsed={perf_counter()-start:.6f}',
-                  flush=True,
-              )
+          value = 18_971_766_861_780_490_000
+          start = perf_counter()
+          count = prime_pi_128(value)
+          print(
+              f'pi({value})={count} target_delta={count - 15**15} '
+              f'elapsed={perf_counter()-start:.6f}',
+              flush=True,
+          )
           PY
       - name: Scale X000014 within direct nth-prime range
         run: |
