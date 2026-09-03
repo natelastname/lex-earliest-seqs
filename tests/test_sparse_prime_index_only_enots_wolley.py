@@ -6,8 +6,10 @@ from lex_earliest_seqs import registry
 from lex_earliest_seqs.cache import open_run
 from lex_earliest_seqs.zoo import sparse_prime_index_only_enots_wolley as sparse_module
 from lex_earliest_seqs.zoo.enots_wolley import prime_support
-from lex_earliest_seqs.zoo.sparse_prime_index_candidate_optimized import (
+from lex_earliest_seqs.zoo.power_of_two_index_prime_only_optimized import (
     PowerOfTwoIndexPrimeOnlyEnotsWolleyGenerator,
+)
+from lex_earliest_seqs.zoo.sparse_prime_index_candidate_optimized import (
     SelfPowerIndexPrimeOnlyEnotsWolleyGenerator,
 )
 from lex_earliest_seqs.zoo.sparse_prime_index_only_enots_wolley import (
@@ -328,15 +330,16 @@ def test_square_uses_compact_heap_stream_cursor_backend():
     assert not hasattr(generator, "pair_multiplier_successors")
 
 
-@pytest.mark.parametrize(
-    "generator_type",
-    [
-        PowerOfTwoIndexPrimeOnlyEnotsWolleyGenerator,
-        SelfPowerIndexPrimeOnlyEnotsWolleyGenerator,
-    ],
-)
-def test_very_sparse_families_use_pointer_pair_backend(generator_type):
-    generator = generator_type()
+def test_power_of_two_uses_heap_pair_backend():
+    generator = PowerOfTwoIndexPrimeOnlyEnotsWolleyGenerator()
+    generator.extend_to(200)
+    assert generator.monoid_heap
+    assert generator.pair_multiplier_successors
+    assert not hasattr(generator, "monoid_stream_indices")
+
+
+def test_self_power_uses_pointer_pair_backend():
+    generator = SelfPowerIndexPrimeOnlyEnotsWolleyGenerator()
     generator.extend_to(20)
     assert generator.monoid_stream_indices
     assert not generator.monoid_heap

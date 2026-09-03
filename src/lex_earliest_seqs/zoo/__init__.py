@@ -54,6 +54,10 @@ from .full_return_enots_wolley import (
     make_full_return_enots_wolley_definition,
     target_free,
 )
+from .power_of_two_index_prime_only_optimized import (
+    POWER_OF_TWO_INDEX_PRIME_ONLY_ENOTS_WOLLEY,
+    PowerOfTwoIndexPrimeOnlyEnotsWolleyGenerator,
+)
 from .primary_enots_wolley import (
     BIPRIMARY_ENOTS_WOLLEY,
     EXACT_TRIPRIMARY_ENOTS_WOLLEY,
@@ -68,11 +72,9 @@ from .primary_enots_wolley import (
     X000005_POLICY,
 )
 from .sparse_prime_index_candidate_optimized import (
-    POWER_OF_TWO_INDEX_PRIME_ONLY_ENOTS_WOLLEY,
     SELF_POWER_INDEX_PRIME_ONLY_ENOTS_WOLLEY,
     PairFrontierSparsePrimeIndexOnlyEnotsWolleyGenerator,
     PointerMonoidPairFrontierSparsePrimeIndexOnlyEnotsWolleyGenerator,
-    PowerOfTwoIndexPrimeOnlyEnotsWolleyGenerator,
     SelfPowerIndexPrimeOnlyEnotsWolleyGenerator,
 )
 from .sparse_prime_index_only_enots_wolley import (
