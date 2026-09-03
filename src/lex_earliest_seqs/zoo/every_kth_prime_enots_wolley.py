@@ -12,7 +12,7 @@ from ..object_space import PositiveIntegers
 from ..projections import prime_exponent_projection
 from .enots_wolley import is_candidate, prime_support
 from .factor_restricted_enots_wolley import FactorRestrictedEnotsWolleyGenerator
-from .scalable_prime_lookup import remember_nth_prime, scalable_nth_prime
+from .scalable_prime_lookup import scalable_nth_prime
 
 # p_1 = 2, p_2 = 3, p_3 = 5, ... .  The table stores the one-based prime
 # index at prime entries and 0 at composites.  It is derived process-local state
@@ -22,7 +22,7 @@ _prime_index_limit = 1
 _indexed_primes: list[int] = []
 
 # Beyond this point a dense inverse-index table is wasteful when the caller only
-# needs one p_n.  Sparse-coordinate generators use the bounded-memory backend.
+# needs one isolated p_n. Sparse-coordinate generators use primecountpy instead.
 _SCALABLE_NTH_PRIME_THRESHOLD = 250_000
 
 
@@ -81,17 +81,13 @@ def nth_prime(index: int) -> int:
     """Return p_index for a positive one-based prime index.
 
     Small indices use the shared dense table because it also supports inverse
-    prime-index queries.  Large isolated indices use the optional primesieve or
-    bounded-memory segmented backend from :mod:`scalable_prime_lookup`.
-    Exact dense results seed that scalable backend, so a later sparse jump starts
-    at the last known prime instead of recounting from two.
+    prime-index queries. Large isolated indices go directly to the required
+    :mod:`primecountpy` backend via :func:`scalable_nth_prime`.
     """
 
     _validate_k(index)
     if len(_indexed_primes) >= index:
-        value = _indexed_primes[index - 1]
-        remember_nth_prime(index, value)
-        return value
+        return _indexed_primes[index - 1]
     if index > _SCALABLE_NTH_PRIME_THRESHOLD:
         return scalable_nth_prime(index)
 
@@ -99,9 +95,7 @@ def nth_prime(index: int) -> int:
     while len(_indexed_primes) < index:
         _ensure_prime_index_table(target)
         target *= 2
-    value = _indexed_primes[index - 1]
-    remember_nth_prime(index, value)
-    return value
+    return _indexed_primes[index - 1]
 
 
 def is_every_kth_prime(value: int, k: int) -> bool:
