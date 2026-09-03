@@ -121,8 +121,6 @@ def test_optimized_generator_matches_direct_definition(pair):
     assert optimized.terms == reference.terms
     assert optimized.used == set(optimized.terms)
     assert optimized.unused_multiplier_successors
-    # The specialized hot path derives radicals directly from prime supports;
-    # it must not allocate ordinary EW's dense candidate-value radical table.
     assert optimized.radicals is None
 
 
