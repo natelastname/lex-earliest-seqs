@@ -6,14 +6,15 @@ import os
 import pickle
 import re
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, is_dataclass
 from pathlib import Path
 from typing import BinaryIO, Generic, TypeVar
 
 from .core import ProgressCallback, SequenceDefinition, SequenceGenerator, SequenceRun
 
 ObjectT = TypeVar("ObjectT")
-CACHE_FORMAT_VERSION = 1
+CACHE_FORMAT_VERSION = 2
+GeneratorSchema = tuple[str, str, str, tuple[tuple[str, str], ...]]
 
 
 class CacheCompatibilityError(RuntimeError):
@@ -26,6 +27,7 @@ class CachedGenerator(Generic[ObjectT]):
     definition_id: str
     definition_version: int
     generator_version: int
+    generator_schema: GeneratorSchema
     generator: SequenceGenerator[ObjectT]
 
 
@@ -83,9 +85,57 @@ def cache_path_for(
     return directory / cache_filename(definition)
 
 
+def _annotation_name(annotation: object) -> str:
+    if isinstance(annotation, str):
+        return annotation
+    module = getattr(annotation, "__module__", None)
+    qualname = getattr(annotation, "__qualname__", None)
+    if module is not None and qualname is not None:
+        return f"{module}.{qualname}"
+    return repr(annotation)
+
+
+def _generator_schema(generator: SequenceGenerator[object]) -> GeneratorSchema:
+    """Return a stable fingerprint of the generator's persisted state layout."""
+
+    generator_type = type(generator)
+    if is_dataclass(generator):
+        kind = "dataclass"
+        state_fields = tuple(
+            (field.name, _annotation_name(field.type)) for field in fields(generator)
+        )
+    else:
+        kind = "annotations"
+        annotations: dict[str, object] = {}
+        for base in reversed(generator_type.__mro__):
+            annotations.update(getattr(base, "__annotations__", {}))
+        state_fields = tuple(
+            sorted(
+                (name, _annotation_name(annotation))
+                for name, annotation in annotations.items()
+            )
+        )
+    return (
+        generator_type.__module__,
+        generator_type.__qualname__,
+        kind,
+        state_fields,
+    )
+
+
+def _fresh_generator(
+    definition: SequenceDefinition[ObjectT],
+) -> SequenceGenerator[ObjectT]:
+    generator = definition.generator_factory()
+    if not isinstance(generator, SequenceGenerator):
+        raise TypeError("generator_factory did not return a SequenceGenerator")
+    return generator
+
+
 def _validate_cached(
     definition: SequenceDefinition[ObjectT],
     cached: object,
+    expected_schema: GeneratorSchema,
 ) -> CachedGenerator[ObjectT]:
     if not isinstance(cached, CachedGenerator):
         raise CacheCompatibilityError("cache does not contain a CachedGenerator")
@@ -104,7 +154,13 @@ def _validate_cached(
     if actual != expected:
         raise CacheCompatibilityError(
             "incompatible sequence cache: "
-            f"expected {expected!r}, found {actual!r}; regenerate with refresh=True"
+            f"expected {expected!r}, found {actual!r}"
+        )
+    actual_schema = getattr(cached, "generator_schema", None)
+    if actual_schema != expected_schema:
+        raise CacheCompatibilityError(
+            "incompatible generator cache schema: "
+            f"expected {expected_schema!r}, found {actual_schema!r}"
         )
     if not isinstance(cached.generator, SequenceGenerator):
         raise CacheCompatibilityError("cached generator does not satisfy SequenceGenerator")
@@ -118,15 +174,25 @@ def load_generator(
     progress: ProgressCallback | None = None,
 ) -> SequenceGenerator[ObjectT]:
     cache_path = Path(path)
+    expected_schema = _generator_schema(_fresh_generator(definition))
     total_bytes = cache_path.stat().st_size
-    with cache_path.open("rb") as handle:
-        if progress is None:
-            cached = pickle.load(handle)
-        else:
-            progress(0, total_bytes)
-            cached = pickle.load(_ProgressReader(handle, total_bytes, progress))
-            progress(total_bytes, total_bytes)
-    return _validate_cached(definition, cached).generator
+    try:
+        with cache_path.open("rb") as handle:
+            try:
+                if progress is None:
+                    cached = pickle.load(handle)
+                else:
+                    progress(0, total_bytes)
+                    cached = pickle.load(_ProgressReader(handle, total_bytes, progress))
+                    progress(total_bytes, total_bytes)
+            except (AttributeError, ImportError) as exc:
+                raise CacheCompatibilityError(
+                    "cache cannot be loaded with the current generator schema"
+                ) from exc
+        return _validate_cached(definition, cached, expected_schema).generator
+    except CacheCompatibilityError:
+        cache_path.unlink(missing_ok=True)
+        raise
 
 
 def save_generator(
@@ -141,6 +207,7 @@ def save_generator(
         definition_id=definition.id,
         definition_version=definition.definition_version,
         generator_version=definition.generator_version,
+        generator_schema=_generator_schema(generator),
         generator=generator,
     )
 
@@ -185,10 +252,11 @@ def open_run(
         path = None
 
     if path is not None and path.exists() and not refresh:
-        generator = load_generator(definition, path, progress=load_progress)
+        try:
+            generator = load_generator(definition, path, progress=load_progress)
+        except CacheCompatibilityError:
+            generator = _fresh_generator(definition)
     else:
-        generator = definition.generator_factory()
-        if not isinstance(generator, SequenceGenerator):
-            raise TypeError("generator_factory did not return a SequenceGenerator")
+        generator = _fresh_generator(definition)
 
     return SequenceRun(definition, generator, cache_path=path)
