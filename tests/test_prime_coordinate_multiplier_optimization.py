@@ -32,13 +32,17 @@ def test_k_three_multiplier_table_is_exact_retained_prime_monoid_prefix():
         16,
         17,
         28,
+        29,
         32,
         34,
+        41,
         49,
+        53,
         56,
+        58,
         64,
+        67,
         68,
-        98,
     ]
 
 
