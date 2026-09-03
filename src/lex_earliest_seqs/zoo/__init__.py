@@ -71,13 +71,11 @@ from .primary_enots_wolley import (
     X000004_POLICY,
     X000005_POLICY,
 )
-from .self_power_index_prime_only_optimized import (
-    SELF_POWER_INDEX_PRIME_ONLY_ENOTS_WOLLEY,
-    SelfPowerIndexPrimeOnlyEnotsWolleyGenerator,
-)
 from .sparse_prime_index_candidate_optimized import (
+    SELF_POWER_INDEX_PRIME_ONLY_ENOTS_WOLLEY,
     PairFrontierSparsePrimeIndexOnlyEnotsWolleyGenerator,
     PointerMonoidPairFrontierSparsePrimeIndexOnlyEnotsWolleyGenerator,
+    SelfPowerIndexPrimeOnlyEnotsWolleyGenerator,
 )
 from .sparse_prime_index_only_enots_wolley import (
     ReferenceSparsePrimeIndexOnlyEnotsWolleyGenerator,
