@@ -165,8 +165,6 @@ class FullReturnEnotsWolleyGenerator(EnotsWolleyGenerator):
             self.q,
         )
 
-        # Same disjoint stream partition as ordinary EW. Heap items are
-        # (candidate, stream_prime, multiplier, forbidden_radical).
         heap: list[tuple[int, int, int, int]] = []
         earlier_shared_product = 1
         for stream_prime in shared_primes:
@@ -249,6 +247,7 @@ def make_full_return_enots_wolley_definition(
         aliases=aliases,
         generator_factory=partial(FullReturnEnotsWolleyGenerator, p=p, q=q),
         generator_version=1,
+        # Version 1 used the now-superseded two-free-term interpretation.
         definition_version=2,
         offset=1,
         object_space=PositiveIntegers(),
