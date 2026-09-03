@@ -13,6 +13,7 @@ authors = [
 ]
 dependencies = [
     "cyclopts>=4.23.3",
+    "primecountpy>=0.2.1",
     "pyarrow>=21,<26",
 ]
 
