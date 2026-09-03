@@ -76,19 +76,19 @@ def test_policies_forbid_nonretained_prime_cofactors():
     ("sequence_id", "alias", "generator_type", "count"),
     [
         (
-            "X000012",
+            "X000009",
             "prime-coordinate-square-ew",
             SquareIndexPrimeOnlyEnotsWolleyGenerator,
             100,
         ),
         (
-            "X000013",
+            "X000010",
             "prime-coordinate-power-of-two-ew",
             PowerOfTwoIndexPrimeOnlyEnotsWolleyGenerator,
             100,
         ),
         (
-            "X000014",
+            "X000011",
             "prime-coordinate-self-power-ew",
             SelfPowerIndexPrimeOnlyEnotsWolleyGenerator,
             20,
@@ -347,9 +347,9 @@ def test_self_power_uses_pointer_pair_backend():
 
 
 def test_registered_definition_constants_have_expected_ids():
-    assert registry.resolve("X000012").id == "X000012"
-    assert registry.resolve("X000013").id == "X000013"
-    assert registry.resolve("X000014").id == "X000014"
+    assert registry.resolve("X000009").id == "X000009"
+    assert registry.resolve("X000010").id == "X000010"
+    assert registry.resolve("X000011").id == "X000011"
 
 
 def test_unknown_family_rejected():
