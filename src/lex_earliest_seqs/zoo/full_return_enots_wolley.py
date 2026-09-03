@@ -1,15 +1,14 @@
 """Enots--Wolley with forced full returns for one target prime pair.
 
 For a fixed pair of distinct primes ``p, q``, ordinary EW is unchanged except
-when the previous two terms are both free of ``p`` and ``q``.  In that state a
+when the immediately previous term is free of ``p`` and ``q``. In that state a
 candidate involving either target prime is eligible only if it contains both:
 
-    previous,two_back free of p,q
+    previous free of p,q
         => candidate is target-free or divisible by p*q.
 
-This forces every first return after a two-free gap to be a full return while
-leaving subsequent proper target terms possible until another two-free gap is
-reached.
+Thus every first target return after a free term is full. One-sided target terms
+remain possible whenever the predecessor already contains ``p`` or ``q``.
 """
 
 from __future__ import annotations
@@ -52,32 +51,27 @@ def target_free(value: int, p: int, q: int) -> bool:
     return value % p != 0 and value % q != 0
 
 
-def full_return_restriction_active(
-    previous: int,
-    two_back: int,
-    p: int,
-    q: int,
-) -> bool:
-    """Return whether the current state requires the next target return to be full."""
+def full_return_restriction_active(previous: int, p: int, q: int) -> bool:
+    """Return whether the next target-touching term must be a full return."""
 
-    return target_free(previous, p, q) and target_free(two_back, p, q)
+    return target_free(previous, p, q)
 
 
 def full_return_candidate_allowed(
     value: int,
     previous: int,
-    two_back: int,
     p: int,
     q: int,
 ) -> bool:
     """Return whether ``value`` obeys the forced-full-return restriction.
 
-    Outside a two-free state there is no additional restriction.  Inside a
-    two-free state, target-free candidates and full ``p*q`` candidates are
-    allowed, while candidates containing exactly one of ``p`` or ``q`` are not.
+    If the predecessor contains ``p`` or ``q`` there is no additional
+    restriction. If the predecessor is target-free, target-free candidates and
+    full ``p*q`` candidates are allowed while candidates containing exactly one
+    target prime are not.
     """
 
-    if not full_return_restriction_active(previous, two_back, p, q):
+    if not full_return_restriction_active(previous, p, q):
         return True
     has_p = value % p == 0
     has_q = value % q == 0
@@ -86,7 +80,7 @@ def full_return_candidate_allowed(
 
 @dataclass
 class ReferenceFullReturnEnotsWolleyGenerator:
-    """Slow direct scanner used as a correctness oracle for arbitrary target pairs."""
+    """Slow direct scanner used as a correctness oracle for arbitrary pairs."""
 
     p: int = 2
     q: int = 3
@@ -108,7 +102,6 @@ class ReferenceFullReturnEnotsWolleyGenerator:
                 and full_return_candidate_allowed(
                     candidate,
                     previous,
-                    two_back,
                     self.p,
                     self.q,
                 )
@@ -136,13 +129,13 @@ class ReferenceFullReturnEnotsWolleyGenerator:
 
 @dataclass
 class FullReturnEnotsWolleyGenerator(EnotsWolleyGenerator):
-    """Optimized ordinary-EW stream generator with one local return restriction.
+    """Optimized ordinary-EW streams with one state-local return restriction.
 
     All history-aware EW stream machinery, including permanent deletion of used
-    products, is inherited unchanged.  The additional full-return failure is
-    state-dependent, so rejected one-sided target candidates are advanced past
-    only for the current state and are never installed in the persistent
-    successor maps.
+    products, is inherited unchanged. A full-return failure is state-dependent:
+    a one-sided target candidate rejected after a free predecessor can become
+    eligible later, so such failures are never installed in persistent successor
+    maps.
     """
 
     p: int = 2
@@ -168,12 +161,11 @@ class FullReturnEnotsWolleyGenerator(EnotsWolleyGenerator):
 
         force_full_return = full_return_restriction_active(
             previous,
-            two_back,
             self.p,
             self.q,
         )
 
-        # Same disjoint stream partition as ordinary EW.  Heap items are
+        # Same disjoint stream partition as ordinary EW. Heap items are
         # (candidate, stream_prime, multiplier, forbidden_radical).
         heap: list[tuple[int, int, int, int]] = []
         earlier_shared_product = 1
@@ -218,8 +210,8 @@ class FullReturnEnotsWolleyGenerator(EnotsWolleyGenerator):
                 return candidate
 
             # Used products are permanent and can be deleted by the inherited
-            # successor DSU.  Both new-prime and full-return failures are local
-            # to the present state and must remain available in future states.
+            # successor DSU. New-prime and full-return failures are local to the
+            # present state and must remain available in future states.
             next_lower_bound = multiplier if candidate in self.used else multiplier + 1
             multiplier = self._next_stream_multiplier(
                 stream_prime,
@@ -257,16 +249,16 @@ def make_full_return_enots_wolley_definition(
         aliases=aliases,
         generator_factory=partial(FullReturnEnotsWolleyGenerator, p=p, q=q),
         generator_version=1,
-        definition_version=1,
+        definition_version=2,
         offset=1,
         object_space=PositiveIntegers(),
         projections={"prime-exponents": prime_exponent_projection()},
         description=(
             "Ordinary lexicographically earliest Enots--Wolley starting 1, 2, "
-            f"with target pair ({p},{q}); whenever the previous two terms are "
-            f"both divisible by neither {p} nor {q}, a candidate containing "
-            f"exactly one of {p},{q} is ineligible, so the next target return "
-            "must contain both target primes."
+            f"with target pair ({p},{q}); whenever the immediately previous term "
+            f"is divisible by neither {p} nor {q}, a candidate containing exactly "
+            f"one of {p},{q} is ineligible, so the next target return must contain "
+            "both target primes."
         ),
     )
 
