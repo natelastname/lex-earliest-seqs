@@ -1,0 +1,51 @@
+name: Temporary final validation
+
+on:
+  push:
+    branches:
+      - perf/self-power-prime-coordinate-20260903
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --locked
+      - name: Portable X000014 to 1000 terms
+        env:
+          LEX_EARLIEST_SEQS_DISABLE_PRIMECOUNT: '1'
+          LEX_EARLIEST_SEQS_DISABLE_PRIMESIEVE: '1'
+        run: |
+          /usr/bin/time -f 'elapsed=%e maxrss_kb=%M' uv run python - <<'PY'
+          from time import perf_counter
+          from lex_earliest_seqs import registry
+
+          generator = registry.resolve('X000014').generator_factory()
+          for count in (100, 1_000):
+              start = perf_counter()
+              generator.extend_to(count)
+              print(
+                  f'count={count} delta={perf_counter()-start:.6f} '
+                  f'primes={len(generator.retained_primes)} '
+                  f'multipliers={len(generator.multiplier_values)} '
+                  f'max_term={max(generator.terms)}',
+                  flush=True,
+              )
+          PY
+      - name: Check changed files formatting
+        run: |
+          uv run black --check \
+            src/lex_earliest_seqs/zoo/__init__.py \
+            src/lex_earliest_seqs/zoo/self_power_index_prime_only_optimized.py \
+            tests/test_self_power_index_prime_only_optimized.py \
+            tests/test_prime_coordinate_multiplier_optimization.py
+          uv run ruff check \
+            src/lex_earliest_seqs/zoo/__init__.py \
+            src/lex_earliest_seqs/zoo/self_power_index_prime_only_optimized.py \
+            tests/test_self_power_index_prime_only_optimized.py \
+            tests/test_prime_coordinate_multiplier_optimization.py
+      - name: Full test suite
+        run: uv run pytest -q --durations=30
