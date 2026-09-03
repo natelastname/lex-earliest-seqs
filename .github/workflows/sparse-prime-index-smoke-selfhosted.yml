@@ -37,5 +37,9 @@ jobs:
             time uv run lex-earliest-seqs compute "$seq" 1000 --no-cache --no-progress
           done
 
-          echo '=== X000014 compute 100 ==='
-          time uv run lex-earliest-seqs compute X000014 100 --no-cache --no-progress
+          # The retained indices 1^1,2^2,3^3,... grow too fast for term count
+          # to be a meaningful asymptotic benchmark.  This smoke test verifies a
+          # nontrivial exact prefix without asking for astronomical p_{i^i}.
+          echo '=== X000014 compute 30 ==='
+          time timeout 10m uv run lex-earliest-seqs compute X000014 30 \
+            --no-cache --no-progress
