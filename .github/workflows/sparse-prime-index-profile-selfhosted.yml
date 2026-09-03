@@ -28,7 +28,7 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - name: Sync environment
         run: uv sync --locked
-      - name: Compare generic and family-specialized candidate engines
+      - name: Compare candidate and monoid strategies family by family
         env:
           LEX_EARLIEST_SEQS_DISABLE_PRIMESIEVE: '1'
         run: |
@@ -43,6 +43,8 @@ jobs:
               SparsePrimeIndexOnlyEnotsWolleyGenerator,
           )
           from lex_earliest_seqs.zoo.sparse_prime_index_candidate_optimized import (
+              PairFrontierSparsePrimeIndexOnlyEnotsWolleyGenerator,
+              PointerMonoidPairFrontierSparsePrimeIndexOnlyEnotsWolleyGenerator,
               PowerOfTwoIndexPrimeOnlyEnotsWolleyGenerator,
               SelfPowerIndexPrimeOnlyEnotsWolleyGenerator,
               SquareIndexPrimeOnlyEnotsWolleyGenerator,
@@ -54,12 +56,15 @@ jobs:
               ('self_power', 24, SelfPowerIndexPrimeOnlyEnotsWolleyGenerator),
           )
 
-          for family, count, optimized_type in cases:
-              timings = {}
-              for label, factory in (
+          for family, count, registered_type in cases:
+              factories = (
                   ('generic', lambda family=family: SparsePrimeIndexOnlyEnotsWolleyGenerator(family=family)),
-                  ('optimized', optimized_type),
-              ):
+                  ('pair_heap', lambda family=family: PairFrontierSparsePrimeIndexOnlyEnotsWolleyGenerator(family=family)),
+                  ('pair_pointer', lambda family=family: PointerMonoidPairFrontierSparsePrimeIndexOnlyEnotsWolleyGenerator(family=family)),
+              )
+              results = {}
+              reference_terms = None
+              for label, factory in factories:
                   generator = factory()
                   profiler = cProfile.Profile()
                   start = time.perf_counter()
@@ -67,7 +72,11 @@ jobs:
                   generator.extend_to(count)
                   profiler.disable()
                   elapsed = time.perf_counter() - start
-                  timings[label] = elapsed
+                  results[label] = elapsed
+                  if reference_terms is None:
+                      reference_terms = generator.terms
+                  else:
+                      assert generator.terms == reference_terms
                   print(
                       f'PROFILE family={family} engine={label} count={count} '
                       f'seconds={elapsed:.6f} multipliers={len(generator.multiplier_values)} '
@@ -77,13 +86,24 @@ jobs:
                       f'pair_streams={len(getattr(generator, "pair_multiplier_successors", {}))}',
                       flush=True,
                   )
-                  if label == 'optimized':
+
+                  registered_backend = (
+                      (family == 'square' and label == 'pair_heap')
+                      or (family != 'square' and label == 'pair_pointer')
+                  )
+                  if registered_backend:
                       stream = io.StringIO()
                       pstats.Stats(profiler, stream=stream).strip_dirs().sort_stats('cumulative').print_stats(20)
                       print(stream.getvalue(), flush=True)
+
+              registered = registered_type()
+              registered.extend_to(count)
+              assert registered.terms == reference_terms
+              chosen = 'pair_heap' if family == 'square' else 'pair_pointer'
               print(
-                  f'SPEEDUP family={family} generic_over_optimized='
-                  f'{timings["generic"] / timings["optimized"]:.3f}',
+                  f'SPEEDUP family={family} generic_over_registered='
+                  f'{results["generic"] / results[chosen]:.3f} '
+                  f'heap_over_pointer={results["pair_heap"] / results["pair_pointer"]:.3f}',
                   flush=True,
               )
           PY
