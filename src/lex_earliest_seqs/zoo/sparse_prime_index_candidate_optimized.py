@@ -55,15 +55,34 @@ class PairFrontierSparsePrimeIndexOnlyEnotsWolleyGenerator(
     * its least newly introduced retained prime ``q``.
 
     The residual multiplier may contain any retained primes except the two-back
-    support and earlier canonical coordinates.  Pair-local successor tables
+    support and earlier canonical coordinates. Pair-local successor tables
     permanently skip residual multipliers whose full product has already been
     selected.
+
+    The inherited single-prime ``multiplier_successors`` table is deliberately
+    unused. A pair stream discovers a globally used product lazily and retires
+    only that pair's residual multiplier. Maintaining the old per-p stream
+    retirement state would duplicate work without helping candidate lookup.
     """
 
     pair_multiplier_successors: dict[PairKey, dict[int, int]] = field(
         default_factory=dict,
         repr=False,
     )
+
+    def _retire_used_value(self, value: int, support_mask: int) -> None:
+        """Do nothing; pair streams retire used products lazily.
+
+        ``SparsePrimeIndexOnlyEnotsWolleyGenerator.extend_to`` calls this hook
+        after selecting a term. The generic engine eagerly deletes each
+        single-prime representation from ``multiplier_successors``. Pair-frontier
+        candidate lookup never consults that structure: it checks ``self.used``
+        in the canonical ``(p, q)`` stream and then permanently advances that
+        pair's successor table. Avoiding eager retirement saves a bisect plus
+        one successor update for every prime factor of every selected term.
+        """
+
+        del value, support_mask
 
     def _find_pair_successor(self, pair: PairKey, index: int) -> int:
         self._ensure_multiplier_index(index)
@@ -139,7 +158,7 @@ class PairFrontierSparsePrimeIndexOnlyEnotsWolleyGenerator(
             stream_prime = self.retained_primes[stream_position]
 
             # Every candidate assigned to this retained stream contains at least
-            # first_novel_prime.  Once even that base cannot beat the current
+            # first_novel_prime. Once even that base cannot beat the current
             # winner, later (larger) retained streams cannot beat it either.
             if (
                 best_value is not None
@@ -196,7 +215,7 @@ class PairFrontierSparsePrimeIndexOnlyEnotsWolleyGenerator(
                         best_mask = candidate_mask
 
                 # A later q-stream is canonical only when the residual multiplier
-                # omits all earlier novel coordinates.  This removes duplicate
+                # omits all earlier novel coordinates. This removes duplicate
                 # pair representations without changing the candidate set.
                 earlier_novel_mask |= novel_bit
                 novel_position += 1
