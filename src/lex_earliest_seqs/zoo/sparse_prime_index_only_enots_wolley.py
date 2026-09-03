@@ -37,6 +37,7 @@ from ..object_space import PositiveIntegers
 from ..projections import prime_exponent_projection
 from .enots_wolley import is_candidate, prime_support
 from .every_kth_prime_enots_wolley import nth_prime, prime_index
+from .scalable_prime_lookup import remember_nth_prime
 
 PrimeIndexFamily = Literal["square", "power_of_two", "self_power"]
 
@@ -241,13 +242,22 @@ class SparsePrimeIndexOnlyEnotsWolleyGenerator:
 
         If ``upper_bound`` is supplied and a rigorous lower bound for the prime
         already exceeds it, ``None`` is returned without calling ``nth_prime``.
-        Prime requests are otherwise filled in retained-position order.
+        Prime requests are otherwise filled in retained-position order.  Before
+        crossing a new sparse coordinate after cache resume, the last pickled
+        exact coordinate is restored as a checkpoint for the scalable backend.
         """
 
         if position < 0:
             raise ValueError("retained-prime position must be nonnegative")
         if position < len(self.retained_primes):
             return self.retained_primes[position]
+
+        if self.retained_primes:
+            checkpoint_position = len(self.retained_primes) - 1
+            remember_nth_prime(
+                self._allowed_prime_index(checkpoint_position),
+                self.retained_primes[checkpoint_position],
+            )
 
         while len(self.retained_primes) <= position:
             next_position = len(self.retained_primes)
