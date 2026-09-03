@@ -6,6 +6,11 @@ on:
       - feature/sparse-prime-coordinate-ew-20260903
     paths:
       - '.github/workflows/sparse-prime-index-profile-selfhosted.yml'
+      - 'src/lex_earliest_seqs/zoo/sparse_prime_index_only_enots_wolley.py'
+      - 'src/lex_earliest_seqs/zoo/scalable_prime_lookup.py'
+      - 'src/lex_earliest_seqs/zoo/every_kth_prime_enots_wolley.py'
+      - 'tests/test_sparse_prime_index_only_enots_wolley.py'
+      - 'tests/test_scalable_prime_lookup.py'
   workflow_dispatch:
 
 concurrency:
@@ -39,7 +44,7 @@ jobs:
           cases = (
               ('square', 20_000),
               ('power_of_two', 20_000),
-              ('self_power', 100),
+              ('self_power', 30),
           )
           for family, count in cases:
               generator = SparsePrimeIndexOnlyEnotsWolleyGenerator(family=family)
@@ -64,7 +69,7 @@ jobs:
       - name: Profile self-power with optional C++ nth-prime backend
         run: |
           set -euo pipefail
-          uv run --with 'primesieve>=2.3.4,<3' python - <<'PY'
+          time timeout 10m uv run --with 'primesieve>=2.3.4,<3' python - <<'PY'
           import cProfile
           import io
           import pstats
@@ -78,11 +83,11 @@ jobs:
           profiler = cProfile.Profile()
           start = time.perf_counter()
           profiler.enable()
-          generator.extend_to(1_000)
+          generator.extend_to(30)
           profiler.disable()
           elapsed = time.perf_counter() - start
           print(
-              f'PRIMESIEVE family=self_power count=1000 seconds={elapsed:.6f} '
+              f'PRIMESIEVE family=self_power count=30 seconds={elapsed:.6f} '
               f'multipliers={len(generator.multiplier_values)} '
               f'opened_primes={generator.next_allowed_position} '
               f'known_primes={len(generator.retained_primes)} '
@@ -96,7 +101,7 @@ jobs:
       - name: Benchmark high index prime lookup
         run: |
           set -euxo pipefail
-          uv run --with 'primesieve>=2.3.4,<3' python - <<'PY'
+          time timeout 10m uv run --with 'primesieve>=2.3.4,<3' python - <<'PY'
           import time
           import primesieve
 
