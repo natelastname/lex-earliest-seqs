@@ -28,8 +28,6 @@ def test_full_return_predicate_uses_only_immediately_previous_term():
     assert not full_return_candidate_allowed(14, previous, p, q)
     assert not full_return_candidate_allowed(21, previous, p, q)
 
-    # Once the predecessor itself touches the target pair, proper one-sided
-    # terms are legal again regardless of what happened two places back.
     assert not full_return_restriction_active(30, p, q)
     assert full_return_candidate_allowed(14, 30, p, q)
     assert full_return_candidate_allowed(21, 30, p, q)
@@ -113,7 +111,7 @@ def test_optimized_generator_matches_direct_definition(pair):
 
 
 @pytest.mark.parametrize("pair", [(2, 3), (2, 5), (3, 5)])
-def test_every_return_after_one_free_term_is_full(pair):
+def test_every_target_return_after_one_free_term_is_full(pair):
     p, q = pair
     generator = FullReturnEnotsWolleyGenerator(p=p, q=q)
     generator.extend_to(2_000)
@@ -128,8 +126,6 @@ def test_every_return_after_one_free_term_is_full(pair):
 
 
 def test_state_local_rejections_can_become_eligible_later():
-    # Each value is rejected as a one-sided return after a free predecessor, but
-    # later occurs once its immediate predecessor touches the target pair.
     cases = [
         ((2, 3), 14, 16),
         ((2, 5), 55, 71),
