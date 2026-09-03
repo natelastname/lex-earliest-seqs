@@ -12,7 +12,7 @@ from ..object_space import PositiveIntegers
 from ..projections import prime_exponent_projection
 from .enots_wolley import is_candidate, prime_support
 from .factor_restricted_enots_wolley import FactorRestrictedEnotsWolleyGenerator
-from .scalable_prime_lookup import scalable_nth_prime
+from .scalable_prime_lookup import remember_nth_prime, scalable_nth_prime
 
 # p_1 = 2, p_2 = 3, p_3 = 5, ... .  The table stores the one-based prime
 # index at prime entries and 0 at composites.  It is derived process-local state
@@ -83,11 +83,15 @@ def nth_prime(index: int) -> int:
     Small indices use the shared dense table because it also supports inverse
     prime-index queries.  Large isolated indices use the optional primesieve or
     bounded-memory segmented backend from :mod:`scalable_prime_lookup`.
+    Exact dense results seed that scalable backend, so a later sparse jump starts
+    at the last known prime instead of recounting from two.
     """
 
     _validate_k(index)
     if len(_indexed_primes) >= index:
-        return _indexed_primes[index - 1]
+        value = _indexed_primes[index - 1]
+        remember_nth_prime(index, value)
+        return value
     if index > _SCALABLE_NTH_PRIME_THRESHOLD:
         return scalable_nth_prime(index)
 
@@ -95,7 +99,9 @@ def nth_prime(index: int) -> int:
     while len(_indexed_primes) < index:
         _ensure_prime_index_table(target)
         target *= 2
-    return _indexed_primes[index - 1]
+    value = _indexed_primes[index - 1]
+    remember_nth_prime(index, value)
+    return value
 
 
 def is_every_kth_prime(value: int, k: int) -> bool:
