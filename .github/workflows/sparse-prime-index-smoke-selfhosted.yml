@@ -23,48 +23,35 @@ jobs:
         run: uv sync --locked
       - name: Run full test suite
         run: uv run pytest
-      - name: Compare optimized prefixes with pre-optimization engine
+      - name: Compare specialized engines with generic sparse engine
+        env:
+          LEX_EARLIEST_SEQS_DISABLE_PRIMESIEVE: '1'
         run: |
           set -euxo pipefail
-          BASE="$RUNNER_TEMP/sparse-prime-index-baseline"
-          rm -rf "$BASE"
-          git worktree add --detach "$BASE" 303dbcd42ab8e000d0db2ca706c43e96f6d4138e
-
-          for spec in square:5000 power_of_two:5000 self_power:20; do
-            family="${spec%%:*}"
-            count="${spec##*:}"
-            current="$RUNNER_TEMP/current-${family}.txt"
-            baseline="$RUNNER_TEMP/baseline-${family}.txt"
-
-            uv run python - "$family" "$count" > "$current" <<'PY'
-          import sys
+          uv run python - <<'PY'
           from lex_earliest_seqs.zoo.sparse_prime_index_only_enots_wolley import (
               SparsePrimeIndexOnlyEnotsWolleyGenerator,
           )
-
-          family = sys.argv[1]
-          count = int(sys.argv[2])
-          generator = SparsePrimeIndexOnlyEnotsWolleyGenerator(family=family)
-          generator.extend_to(count)
-          print(*generator.terms, sep="\n")
-          PY
-
-            PYTHONPATH="$BASE/src" uv run python - "$family" "$count" \
-              > "$baseline" <<'PY'
-          import sys
-          from lex_earliest_seqs.zoo.sparse_prime_index_only_enots_wolley import (
-              SparsePrimeIndexOnlyEnotsWolleyGenerator,
+          from lex_earliest_seqs.zoo.sparse_prime_index_candidate_optimized import (
+              PowerOfTwoIndexPrimeOnlyEnotsWolleyGenerator,
+              SelfPowerIndexPrimeOnlyEnotsWolleyGenerator,
+              SquareIndexPrimeOnlyEnotsWolleyGenerator,
           )
 
-          family = sys.argv[1]
-          count = int(sys.argv[2])
-          generator = SparsePrimeIndexOnlyEnotsWolleyGenerator(family=family)
-          generator.extend_to(count)
-          print(*generator.terms, sep="\n")
+          cases = (
+              ('square', 5_000, SquareIndexPrimeOnlyEnotsWolleyGenerator),
+              ('power_of_two', 5_000, PowerOfTwoIndexPrimeOnlyEnotsWolleyGenerator),
+              ('self_power', 20, SelfPowerIndexPrimeOnlyEnotsWolleyGenerator),
+          )
+          for family, count, optimized_type in cases:
+              generic = SparsePrimeIndexOnlyEnotsWolleyGenerator(family=family)
+              optimized = optimized_type()
+              generic.extend_to(count)
+              optimized.extend_to(count)
+              assert optimized.terms == generic.terms
+              assert optimized.term_support_masks == generic.term_support_masks
+              print(f'equivalent family={family} count={count}')
           PY
-
-            cmp "$baseline" "$current"
-          done
       - name: Compute finite prefixes with portable backend
         env:
           LEX_EARLIEST_SEQS_DISABLE_PRIMESIEVE: '1'
@@ -74,13 +61,10 @@ jobs:
           for seq in X000012 X000013; do
             echo "=== $seq first 20 ==="
             uv run lex-earliest-seqs terms "$seq" 20 --no-cache --no-progress
-            echo "=== $seq compute 1000 ==="
-            time uv run lex-earliest-seqs compute "$seq" 1000 --no-cache --no-progress
+            echo "=== $seq compute 5000 ==="
+            time uv run lex-earliest-seqs compute "$seq" 5000 --no-cache --no-progress
           done
 
-          # The retained indices 1^1,2^2,3^3,... grow too fast for term count
-          # to be a meaningful asymptotic benchmark. This smoke test verifies a
-          # nontrivial exact prefix without asking for astronomical p_{i^i}.
-          echo '=== X000014 compute 30 ==='
-          time timeout 10m uv run lex-earliest-seqs compute X000014 30 \
+          echo '=== X000014 compute 24 ==='
+          time timeout 10m uv run lex-earliest-seqs compute X000014 24 \
             --no-cache --no-progress

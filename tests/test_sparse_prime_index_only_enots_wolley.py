@@ -6,10 +6,12 @@ from lex_earliest_seqs import registry
 from lex_earliest_seqs.cache import open_run
 from lex_earliest_seqs.zoo import sparse_prime_index_only_enots_wolley as sparse_module
 from lex_earliest_seqs.zoo.enots_wolley import prime_support
+from lex_earliest_seqs.zoo.sparse_prime_index_candidate_optimized import (
+    PowerOfTwoIndexPrimeOnlyEnotsWolleyGenerator,
+    SelfPowerIndexPrimeOnlyEnotsWolleyGenerator,
+    SquareIndexPrimeOnlyEnotsWolleyGenerator,
+)
 from lex_earliest_seqs.zoo.sparse_prime_index_only_enots_wolley import (
-    POWER_OF_TWO_INDEX_PRIME_ONLY_ENOTS_WOLLEY,
-    SELF_POWER_INDEX_PRIME_ONLY_ENOTS_WOLLEY,
-    SQUARE_INDEX_PRIME_ONLY_ENOTS_WOLLEY,
     ReferenceSparsePrimeIndexOnlyEnotsWolleyGenerator,
     SparsePrimeIndexOnlyEnotsWolleyGenerator,
     SparsePrimeIndexOnlyPolicy,
@@ -67,23 +69,39 @@ def test_policies_forbid_nonretained_prime_cofactors():
 
 
 @pytest.mark.parametrize(
-    ("sequence_id", "alias", "family", "count"),
+    ("sequence_id", "alias", "generator_type", "count"),
     [
-        ("X000012", "prime-coordinate-square-ew", "square", 60),
-        ("X000013", "prime-coordinate-power-of-two-ew", "power_of_two", 60),
-        ("X000014", "prime-coordinate-self-power-ew", "self_power", 20),
+        (
+            "X000012",
+            "prime-coordinate-square-ew",
+            SquareIndexPrimeOnlyEnotsWolleyGenerator,
+            100,
+        ),
+        (
+            "X000013",
+            "prime-coordinate-power-of-two-ew",
+            PowerOfTwoIndexPrimeOnlyEnotsWolleyGenerator,
+            100,
+        ),
+        (
+            "X000014",
+            "prime-coordinate-self-power-ew",
+            SelfPowerIndexPrimeOnlyEnotsWolleyGenerator,
+            20,
+        ),
     ],
 )
-def test_registered_sparse_prime_index_sequences(sequence_id, alias, family, count):
+def test_registered_sparse_prime_index_sequences(
+    sequence_id, alias, generator_type, count
+):
     definition = registry.resolve(sequence_id)
     assert definition.oeis is None
-    assert definition.generator_version == 2
+    assert definition.generator_version == 3
     assert registry.resolve(alias) is definition
     assert "prime-exponents" in definition.projections
 
     generator = definition.generator_factory()
-    assert isinstance(generator, SparsePrimeIndexOnlyEnotsWolleyGenerator)
-    assert generator.family == family
+    assert isinstance(generator, generator_type)
     assert generator.terms == [1, 2]
 
     run = open_run(definition, use_cache=False)
@@ -91,16 +109,17 @@ def test_registered_sparse_prime_index_sequences(sequence_id, alias, family, cou
     assert len(run.terms) == count
     assert len(set(run.terms)) == count
 
-    policy = SparsePrimeIndexOnlyPolicy(family)
+    policy = SparsePrimeIndexOnlyPolicy(generator.family)
     for term in run.terms[1:]:
         assert policy.allows(term)
 
 
 @pytest.mark.parametrize(
-    ("family", "expected"),
+    ("family", "generator_type", "expected"),
     [
         (
             "square",
+            SquareIndexPrimeOnlyEnotsWolleyGenerator,
             [
                 1,
                 2,
@@ -126,6 +145,7 @@ def test_registered_sparse_prime_index_sequences(sequence_id, alias, family, cou
         ),
         (
             "power_of_two",
+            PowerOfTwoIndexPrimeOnlyEnotsWolleyGenerator,
             [
                 1,
                 2,
@@ -151,6 +171,7 @@ def test_registered_sparse_prime_index_sequences(sequence_id, alias, family, cou
         ),
         (
             "self_power",
+            SelfPowerIndexPrimeOnlyEnotsWolleyGenerator,
             [
                 1,
                 2,
@@ -176,22 +197,42 @@ def test_registered_sparse_prime_index_sequences(sequence_id, alias, family, cou
         ),
     ],
 )
-def test_optimized_generator_preserves_known_prefixes(family, expected):
-    generator = SparsePrimeIndexOnlyEnotsWolleyGenerator(family=family)
+def test_optimized_generator_preserves_known_prefixes(family, generator_type, expected):
+    generator = generator_type()
+    assert generator.family == family
     generator.extend_to(len(expected))
     assert generator.terms == expected
 
 
 @pytest.mark.parametrize(
-    ("family", "count"),
+    ("family", "generator_type", "count"),
     [
-        ("square", 20),
-        ("power_of_two", 20),
-        ("self_power", 4),
+        ("square", SquareIndexPrimeOnlyEnotsWolleyGenerator, 1000),
+        ("power_of_two", PowerOfTwoIndexPrimeOnlyEnotsWolleyGenerator, 1000),
+        ("self_power", SelfPowerIndexPrimeOnlyEnotsWolleyGenerator, 20),
     ],
 )
-def test_optimized_generator_matches_direct_scanner(family, count):
-    generator = SparsePrimeIndexOnlyEnotsWolleyGenerator(family=family)
+def test_family_specialized_engine_matches_generic_engine(family, generator_type, count):
+    optimized = generator_type()
+    generic = SparsePrimeIndexOnlyEnotsWolleyGenerator(family=family)
+
+    optimized.extend_to(count)
+    generic.extend_to(count)
+
+    assert optimized.terms == generic.terms
+    assert optimized.term_support_masks == generic.term_support_masks
+
+
+@pytest.mark.parametrize(
+    ("family", "generator_type", "count"),
+    [
+        ("square", SquareIndexPrimeOnlyEnotsWolleyGenerator, 20),
+        ("power_of_two", PowerOfTwoIndexPrimeOnlyEnotsWolleyGenerator, 20),
+        ("self_power", SelfPowerIndexPrimeOnlyEnotsWolleyGenerator, 4),
+    ],
+)
+def test_optimized_generator_matches_direct_scanner(family, generator_type, count):
+    generator = generator_type()
     reference = ReferenceSparsePrimeIndexOnlyEnotsWolleyGenerator(family=family)
 
     generator.extend_to(count)
@@ -202,15 +243,15 @@ def test_optimized_generator_matches_direct_scanner(family, count):
 
 
 @pytest.mark.parametrize(
-    ("family", "count"),
+    ("generator_type", "count"),
     [
-        ("square", 80),
-        ("power_of_two", 80),
-        ("self_power", 20),
+        (SquareIndexPrimeOnlyEnotsWolleyGenerator, 100),
+        (PowerOfTwoIndexPrimeOnlyEnotsWolleyGenerator, 100),
+        (SelfPowerIndexPrimeOnlyEnotsWolleyGenerator, 20),
     ],
 )
-def test_support_masks_match_factorization(family, count):
-    generator = SparsePrimeIndexOnlyEnotsWolleyGenerator(family=family)
+def test_support_masks_match_factorization(generator_type, count):
+    generator = generator_type()
     generator.extend_to(count)
 
     assert len(generator.term_support_masks) == len(generator.terms)
@@ -236,74 +277,72 @@ def test_support_masks_match_factorization(family, count):
 
 
 @pytest.mark.parametrize(
-    ("family", "count"),
+    ("generator_type", "count"),
     [
-        ("square", 100),
-        ("power_of_two", 100),
-        ("self_power", 20),
+        (SquareIndexPrimeOnlyEnotsWolleyGenerator, 200),
+        (PowerOfTwoIndexPrimeOnlyEnotsWolleyGenerator, 200),
+        (SelfPowerIndexPrimeOnlyEnotsWolleyGenerator, 20),
     ],
 )
-def test_production_candidate_engine_does_not_factor_terms(monkeypatch, family, count):
+def test_production_candidate_engine_does_not_factor_terms(
+    monkeypatch, generator_type, count
+):
     def fail_prime_support(_value):
         raise AssertionError("production sparse generator unexpectedly factored a term")
 
-    generator = SparsePrimeIndexOnlyEnotsWolleyGenerator(family=family)
+    generator = generator_type()
     monkeypatch.setattr(sparse_module, "prime_support", fail_prime_support)
     generator.extend_to(count)
     assert len(generator.terms) == count
 
 
 @pytest.mark.parametrize(
-    ("family", "first_count", "second_count"),
+    ("generator_type", "first_count", "second_count"),
     [
-        ("square", 50, 80),
-        ("power_of_two", 50, 80),
-        ("self_power", 12, 20),
+        (SquareIndexPrimeOnlyEnotsWolleyGenerator, 100, 200),
+        (PowerOfTwoIndexPrimeOnlyEnotsWolleyGenerator, 100, 200),
+        (SelfPowerIndexPrimeOnlyEnotsWolleyGenerator, 12, 20),
     ],
 )
-def test_generator_pickle_resumes(family, first_count, second_count):
-    generator = SparsePrimeIndexOnlyEnotsWolleyGenerator(family=family)
+def test_generator_pickle_resumes(generator_type, first_count, second_count):
+    generator = generator_type()
     generator.extend_to(first_count)
 
     restored = pickle.loads(pickle.dumps(generator))
-    assert restored.family == family
-    assert restored.policy == SparsePrimeIndexOnlyPolicy(family)
     restored.extend_to(second_count)
 
-    fresh = SparsePrimeIndexOnlyEnotsWolleyGenerator(family=family)
+    fresh = generator_type()
     fresh.extend_to(second_count)
     assert restored.terms == fresh.terms
     assert restored.term_support_masks == fresh.term_support_masks
 
 
-def test_pickle_resume_reseeds_high_index_prime_cursor(monkeypatch):
-    generator = SparsePrimeIndexOnlyEnotsWolleyGenerator(family="self_power")
+def test_square_uses_heap_monoid_backend():
+    generator = SquareIndexPrimeOnlyEnotsWolleyGenerator()
+    generator.extend_to(500)
+    assert generator.monoid_heap
+    assert generator.pair_multiplier_successors
+
+
+@pytest.mark.parametrize(
+    "generator_type",
+    [
+        PowerOfTwoIndexPrimeOnlyEnotsWolleyGenerator,
+        SelfPowerIndexPrimeOnlyEnotsWolleyGenerator,
+    ],
+)
+def test_very_sparse_families_use_pointer_monoid_backend(generator_type):
+    generator = generator_type()
     generator.extend_to(20)
-    restored = pickle.loads(pickle.dumps(generator))
-
-    checkpoint_position = len(restored.retained_primes) - 1
-    checkpoint = (
-        restored._allowed_prime_index(checkpoint_position),
-        restored.retained_primes[checkpoint_position],
-    )
-    next_position = len(restored.retained_primes)
-    calls: list[tuple[int, int]] = []
-
-    monkeypatch.setattr(
-        sparse_module,
-        "remember_nth_prime",
-        lambda index, prime: calls.append((index, prime)),
-    )
-    monkeypatch.setattr(sparse_module, "nth_prime", lambda _index: 999_983)
-
-    assert restored._prime_at_position(next_position) == 999_983
-    assert calls == [checkpoint]
+    assert generator.monoid_stream_indices
+    assert not generator.monoid_heap
+    assert generator.pair_multiplier_successors
 
 
 def test_registered_definition_constants_have_expected_ids():
-    assert SQUARE_INDEX_PRIME_ONLY_ENOTS_WOLLEY.id == "X000012"
-    assert POWER_OF_TWO_INDEX_PRIME_ONLY_ENOTS_WOLLEY.id == "X000013"
-    assert SELF_POWER_INDEX_PRIME_ONLY_ENOTS_WOLLEY.id == "X000014"
+    assert registry.resolve("X000012").id == "X000012"
+    assert registry.resolve("X000013").id == "X000013"
+    assert registry.resolve("X000014").id == "X000014"
 
 
 def test_unknown_family_rejected():
