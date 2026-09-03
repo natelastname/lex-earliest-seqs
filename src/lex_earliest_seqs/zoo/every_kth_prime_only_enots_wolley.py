@@ -112,14 +112,21 @@ class EveryKthPrimeOnlyEnotsWolleyGenerator:
 
         p*m is an allowed integer  <=>  m is in M_k.
 
-    The generic factor-restricted generator used to scan all ordinary integer
-    multipliers and permanently reject those containing forbidden primes. This
-    implementation instead maintains the increasing list of ``M_k`` multipliers
-    with a segmented sieve. All active prime streams share that one table.
+    The generator maintains the increasing list of ``M_k`` multipliers with a
+    segmented sieve. All active prime streams share that one table instead of
+    scanning ordinary integers and rediscovering forbidden prime factors.
 
-    Per-stream successor maps are therefore needed only for historically used
-    products, not for structural policy failures. Local two-back exclusions are
-    still tested with ``gcd`` because they depend on the current state.
+    There is one additional shared filtered table containing the odd members of
+    ``M_k``. The prime 2 is always retained and is by far the dominant small
+    factor of ``M_k``. Whenever the current two-back/stream partition forbids 2,
+    an admissible multiplier must be odd, so scanning the full monoid would test
+    a long run of structurally impossible even multipliers. Such streams switch
+    directly to the odd table. This is an exact restriction, not a heuristic.
+
+    Each table has its own per-stream successor-with-delete maps because their
+    indices are different. These maps delete only historically used products.
+    Other local two-back exclusions are still tested with ``gcd`` because they
+    depend on the current state.
 
     Candidate new-prime testing also avoids factorization: for ``candidate=p*m``
     with stream prime ``p`` already in the predecessor support, the candidate
@@ -133,13 +140,20 @@ class EveryKthPrimeOnlyEnotsWolleyGenerator:
     used: set[int] = field(init=False)
 
     # All positive M_k values through multiplier_limit, in increasing order.
-    # The list is shared by every candidate stream in this generator instance.
     multiplier_values: list[int] = field(default_factory=lambda: [1], repr=False)
+
+    # The odd submonoid view: exactly the odd members of multiplier_values.
+    # Both tables are extended in the same segmented sieve pass.
+    odd_multiplier_values: list[int] = field(default_factory=lambda: [1], repr=False)
     multiplier_limit: int = 1
 
-    # For each stream prime, a successor-with-delete structure over indices into
-    # multiplier_values. Only globally used products are deleted permanently.
+    # Successor maps are table-coordinate specific. They only represent
+    # globally used products; structural exclusions never enter these maps.
     multiplier_successors: dict[int, dict[int, int]] = field(
+        default_factory=dict,
+        repr=False,
+    )
+    odd_multiplier_successors: dict[int, dict[int, int]] = field(
         default_factory=dict,
         repr=False,
     )
@@ -150,13 +164,7 @@ class EveryKthPrimeOnlyEnotsWolleyGenerator:
         self.used = {1, 2}
 
     def _extend_multiplier_table(self, required_value: int) -> None:
-        """Extend the sorted M_k multiplier table through ``required_value``.
-
-        Extension is segmented. A segment starts with every integer provisionally
-        allowed, then multiples of forbidden prime coordinates are crossed out.
-        Surviving integers have no forbidden prime divisor, hence lie exactly in
-        the retained-prime monoid M_k.
-        """
+        """Extend the full and odd retained-multiplier tables through a value."""
 
         if required_value <= self.multiplier_limit:
             return
@@ -176,60 +184,107 @@ class EveryKthPrimeOnlyEnotsWolleyGenerator:
                 count = (upper - first) // prime + 1
                 flags[offset::prime] = b"\x00" * count
 
-            self.multiplier_values.extend(
+            new_values = [
                 lower + offset for offset, allowed in enumerate(flags) if allowed
-            )
+            ]
+            self.multiplier_values.extend(new_values)
+            self.odd_multiplier_values.extend(value for value in new_values if value & 1)
             self.multiplier_limit = upper
 
-    def _ensure_multiplier_index(self, index: int) -> None:
+    def _multiplier_table_for_forbidden(
+        self,
+        forbidden_radical: int,
+    ) -> tuple[list[int], dict[int, dict[int, int]]]:
+        """Return the narrowest shared table forced by the local exclusions.
+
+        If 2 divides ``forbidden_radical``, every valid multiplier is odd, so the
+        odd retained-multiplier table is complete for this stream. Otherwise the
+        full retained-multiplier table is required.
+        """
+
+        if forbidden_radical % 2 == 0:
+            return self.odd_multiplier_values, self.odd_multiplier_successors
+        return self.multiplier_values, self.multiplier_successors
+
+    def _ensure_table_index(self, values: list[int], index: int) -> None:
         if index < 0:
             raise ValueError("multiplier index must be nonnegative")
-        while index >= len(self.multiplier_values):
+        while index >= len(values):
             self._extend_multiplier_table(max(64, 2 * self.multiplier_limit))
 
-    def _index_at_least(self, lower_bound: int) -> int:
-        """Return the first M_k multiplier index whose value is >= lower_bound."""
+    def _find_multiplier_successor(
+        self,
+        stream_prime: int,
+        index: int,
+        values: list[int],
+        successor_maps: dict[int, dict[int, int]],
+    ) -> int:
+        """Find the first table index not deleted for ``stream_prime``."""
 
-        lower_bound = max(1, lower_bound)
-        while self.multiplier_values[-1] < lower_bound:
-            self._extend_multiplier_table(max(lower_bound, 2 * self.multiplier_limit))
-        return bisect_left(self.multiplier_values, lower_bound)
-
-    def _find_multiplier_successor(self, stream_prime: int, index: int) -> int:
-        """Find the first multiplier index not deleted for ``stream_prime``."""
-
-        self._ensure_multiplier_index(index)
-        parents = self.multiplier_successors.setdefault(stream_prime, {})
+        self._ensure_table_index(values, index)
+        parents = successor_maps.setdefault(stream_prime, {})
         current = index
         path: list[int] = []
         while current in parents:
             path.append(current)
             current = parents[current]
-            self._ensure_multiplier_index(current)
+            self._ensure_table_index(values, current)
         for item in path:
             parents[item] = current
         return current
 
-    def _delete_multiplier_index(self, stream_prime: int, index: int) -> bool:
-        """Permanently delete one used-product multiplier index from a stream."""
+    def _delete_multiplier_index(
+        self,
+        stream_prime: int,
+        index: int,
+        values: list[int],
+        successor_maps: dict[int, dict[int, int]],
+    ) -> bool:
+        """Permanently delete one used-product table index from a stream."""
 
-        surviving = self._find_multiplier_successor(stream_prime, index)
+        surviving = self._find_multiplier_successor(
+            stream_prime,
+            index,
+            values,
+            successor_maps,
+        )
         if surviving != index:
             return False
-        parents = self.multiplier_successors.setdefault(stream_prime, {})
-        parents[index] = self._find_multiplier_successor(stream_prime, index + 1)
+        parents = successor_maps.setdefault(stream_prime, {})
+        parents[index] = self._find_multiplier_successor(
+            stream_prime,
+            index + 1,
+            values,
+            successor_maps,
+        )
         return True
 
-    def _next_unused_multiplier_index(self, stream_prime: int, index: int) -> int:
-        """Return the next index whose stream product is globally unused."""
+    def _next_unused_multiplier_index(
+        self,
+        stream_prime: int,
+        index: int,
+        values: list[int],
+        successor_maps: dict[int, dict[int, int]],
+    ) -> int:
+        """Return the next table index whose stream product is globally unused."""
 
-        parents = self.multiplier_successors.setdefault(stream_prime, {})
-        index = self._find_multiplier_successor(stream_prime, index)
+        parents = successor_maps.setdefault(stream_prime, {})
+        index = self._find_multiplier_successor(
+            stream_prime,
+            index,
+            values,
+            successor_maps,
+        )
         while True:
-            multiplier = self.multiplier_values[index]
+            multiplier = values[index]
             if stream_prime * multiplier not in self.used:
                 return index
-            successor = self._find_multiplier_successor(stream_prime, index + 1)
+            successor = self._find_multiplier_successor(
+                stream_prime,
+                index + 1,
+                values,
+                successor_maps,
+            )
             parents[index] = successor
             index = successor
 
@@ -239,12 +294,20 @@ class EveryKthPrimeOnlyEnotsWolleyGenerator:
         lower_index: int,
         forbidden_radical: int,
     ) -> int:
-        """Return the least unused M_k multiplier satisfying local exclusions."""
+        """Return the least unused locally admissible multiplier-table index."""
 
+        values, successor_maps = self._multiplier_table_for_forbidden(
+            forbidden_radical
+        )
         index = max(0, lower_index)
         while True:
-            index = self._next_unused_multiplier_index(stream_prime, index)
-            multiplier = self.multiplier_values[index]
+            index = self._next_unused_multiplier_index(
+                stream_prime,
+                index,
+                values,
+                successor_maps,
+            )
+            multiplier = values[index]
             if gcd(multiplier, forbidden_radical) == 1:
                 return index
             index += 1
@@ -264,20 +327,48 @@ class EveryKthPrimeOnlyEnotsWolleyGenerator:
                 return False
         return remainder > 1
 
+    def _retire_in_table(
+        self,
+        stream_prime: int,
+        multiplier: int,
+        values: list[int],
+        successor_maps: dict[int, dict[int, int]],
+    ) -> int:
+        """Retire one materialized stream representation from one table."""
+
+        index = bisect_left(values, multiplier)
+        if index >= len(values) or values[index] != multiplier:
+            return 0
+        return int(
+            self._delete_multiplier_index(
+                stream_prime,
+                index,
+                values,
+                successor_maps,
+            )
+        )
+
     def _retire_used_value(self, value: int) -> int:
-        """Eagerly retire already-materialized stream representations of value."""
+        """Eagerly retire materialized full- and odd-table representations."""
 
         deletions = 0
         for stream_prime in prime_support(value):
             multiplier = value // stream_prime
             if multiplier > self.multiplier_limit:
                 continue
-            index = bisect_left(self.multiplier_values, multiplier)
-            if (
-                index < len(self.multiplier_values)
-                and self.multiplier_values[index] == multiplier
-            ):
-                deletions += self._delete_multiplier_index(stream_prime, index)
+            deletions += self._retire_in_table(
+                stream_prime,
+                multiplier,
+                self.multiplier_values,
+                self.multiplier_successors,
+            )
+            if multiplier & 1:
+                deletions += self._retire_in_table(
+                    stream_prime,
+                    multiplier,
+                    self.odd_multiplier_values,
+                    self.odd_multiplier_successors,
+                )
         return deletions
 
     def _next_candidate(self) -> int:
@@ -298,12 +389,13 @@ class EveryKthPrimeOnlyEnotsWolleyGenerator:
 
         for stream_prime in shared_primes:
             forbidden_radical = two_back_radical * earlier_shared_product
+            values, _ = self._multiplier_table_for_forbidden(forbidden_radical)
             index = self._next_stream_index(
                 stream_prime,
                 0,
                 forbidden_radical,
             )
-            multiplier = self.multiplier_values[index]
+            multiplier = values[index]
             heappush(
                 heap,
                 (
@@ -317,7 +409,8 @@ class EveryKthPrimeOnlyEnotsWolleyGenerator:
 
         while heap:
             candidate, stream_prime, index, forbidden_radical = heappop(heap)
-            multiplier = self.multiplier_values[index]
+            values, _ = self._multiplier_table_for_forbidden(forbidden_radical)
+            multiplier = values[index]
 
             # Stream construction guarantees: candidate is an unused allowed
             # integer, shares with the predecessor, and is coprime to two-back.
@@ -330,7 +423,8 @@ class EveryKthPrimeOnlyEnotsWolleyGenerator:
                 index + 1,
                 forbidden_radical,
             )
-            multiplier = self.multiplier_values[index]
+            values, _ = self._multiplier_table_for_forbidden(forbidden_radical)
+            multiplier = values[index]
             heappush(
                 heap,
                 (
@@ -376,7 +470,7 @@ def make_every_kth_prime_only_enots_wolley_definition(
         name=name,
         aliases=aliases,
         generator_factory=partial(EveryKthPrimeOnlyEnotsWolleyGenerator, k=k),
-        generator_version=2,
+        generator_version=3,
         definition_version=1,
         offset=1,
         object_space=PositiveIntegers(),

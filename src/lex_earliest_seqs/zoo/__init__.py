@@ -42,6 +42,18 @@ from .forced_squarefree_enots_wolley import (
     FORCED_SQUAREFREE_ENOTS_WOLLEY,
     ForcedSquarefreeEnotsWolleyGenerator,
 )
+from .full_return_enots_wolley import (
+    FULL_RETURN_ENOTS_WOLLEY_DEFINITIONS,
+    FULL_RETURN_EW_2_3,
+    FULL_RETURN_EW_2_5,
+    FULL_RETURN_EW_3_5,
+    FullReturnEnotsWolleyGenerator,
+    ReferenceFullReturnEnotsWolleyGenerator,
+    full_return_candidate_allowed,
+    full_return_restriction_active,
+    make_full_return_enots_wolley_definition,
+    target_free,
+)
 from .primary_enots_wolley import (
     BIPRIMARY_ENOTS_WOLLEY,
     EXACT_TRIPRIMARY_ENOTS_WOLLEY,
@@ -93,14 +105,20 @@ __all__ = [
     "EveryKthPrimeOnlyPolicy",
     "EveryKthPrimePolicy",
     "FORCED_SQUAREFREE_ENOTS_WOLLEY",
+    "FULL_RETURN_ENOTS_WOLLEY_DEFINITIONS",
+    "FULL_RETURN_EW_2_3",
+    "FULL_RETURN_EW_2_5",
+    "FULL_RETURN_EW_3_5",
     "FactorRestrictedEnotsWolleyDefinition",
     "FactorRestrictedEnotsWolleyGenerator",
     "ForcedSquarefreeEnotsWolleyGenerator",
+    "FullReturnEnotsWolleyGenerator",
     "POWER_OF_TWO_INDEX_PRIME_ONLY_ENOTS_WOLLEY",
     "PRIMARY_ENOTS_WOLLEY_DEFINITIONS",
     "ReferenceEveryKthPrimeEnotsWolleyGenerator",
     "ReferenceEveryKthPrimeOnlyEnotsWolleyGenerator",
     "ReferenceFactorRestrictedEnotsWolleyGenerator",
+    "ReferenceFullReturnEnotsWolleyGenerator",
     "ReferenceSparsePrimeIndexOnlyEnotsWolleyGenerator",
     "SELF_POWER_INDEX_PRIME_ONLY_ENOTS_WOLLEY",
     "SPARSE_PRIME_INDEX_ONLY_ENOTS_WOLLEY_DEFINITIONS",
@@ -119,17 +137,21 @@ __all__ = [
     "X000004_POLICY",
     "X000005_POLICY",
     "big_omega",
+    "full_return_candidate_allowed",
+    "full_return_restriction_active",
     "is_every_kth_prime",
     "is_retained_prime",
     "is_retained_prime_index",
     "make_every_kth_prime_enots_wolley_definition",
     "make_every_kth_prime_only_enots_wolley_definition",
     "make_factor_restricted_enots_wolley_definition",
+    "make_full_return_enots_wolley_definition",
     "make_sparse_prime_index_only_enots_wolley_definition",
     "nth_prime",
     "omega",
     "prime_index",
     "register_builtins",
+    "target_free",
 ]
 
 
@@ -144,4 +166,6 @@ def register_builtins(registry: SequenceRegistry) -> None:
     for definition in EVERY_KTH_PRIME_ONLY_ENOTS_WOLLEY_DEFINITIONS:
         registry.register(definition)
     for definition in SPARSE_PRIME_INDEX_ONLY_ENOTS_WOLLEY_DEFINITIONS:
+        registry.register(definition)
+    for definition in FULL_RETURN_ENOTS_WOLLEY_DEFINITIONS:
         registry.register(definition)
