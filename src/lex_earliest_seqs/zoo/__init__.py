@@ -18,6 +18,17 @@ from .every_kth_prime_enots_wolley import (
     nth_prime,
     prime_index,
 )
+from .every_kth_prime_only_enots_wolley import (
+    EVERY_FOURTH_PRIME_ONLY_ENOTS_WOLLEY,
+    EVERY_KTH_PRIME_ONLY_ENOTS_WOLLEY_DEFINITIONS,
+    EVERY_SECOND_PRIME_ONLY_ENOTS_WOLLEY,
+    EVERY_THIRD_PRIME_ONLY_ENOTS_WOLLEY,
+    EveryKthPrimeOnlyEnotsWolleyGenerator,
+    EveryKthPrimeOnlyPolicy,
+    ReferenceEveryKthPrimeOnlyEnotsWolleyGenerator,
+    is_retained_prime,
+    make_every_kth_prime_only_enots_wolley_definition,
+)
 from .factor_restricted_enots_wolley import (
     EWFactorPolicy,
     FactorRestrictedEnotsWolleyDefinition,
@@ -56,13 +67,19 @@ __all__ = [
     "BinaryEnotsWolleyGenerator",
     "ENOTS_WOLLEY",
     "EVERY_FOURTH_PRIME_ENOTS_WOLLEY",
+    "EVERY_FOURTH_PRIME_ONLY_ENOTS_WOLLEY",
     "EVERY_KTH_PRIME_ENOTS_WOLLEY_DEFINITIONS",
+    "EVERY_KTH_PRIME_ONLY_ENOTS_WOLLEY_DEFINITIONS",
     "EVERY_SECOND_PRIME_ENOTS_WOLLEY",
+    "EVERY_SECOND_PRIME_ONLY_ENOTS_WOLLEY",
     "EVERY_THIRD_PRIME_ENOTS_WOLLEY",
+    "EVERY_THIRD_PRIME_ONLY_ENOTS_WOLLEY",
     "EWFactorPolicy",
     "EXACT_TRIPRIMARY_ENOTS_WOLLEY",
     "EnotsWolleyGenerator",
     "EveryKthPrimeEnotsWolleyGenerator",
+    "EveryKthPrimeOnlyEnotsWolleyGenerator",
+    "EveryKthPrimeOnlyPolicy",
     "EveryKthPrimePolicy",
     "FORCED_SQUAREFREE_ENOTS_WOLLEY",
     "FactorRestrictedEnotsWolleyDefinition",
@@ -70,6 +87,7 @@ __all__ = [
     "ForcedSquarefreeEnotsWolleyGenerator",
     "PRIMARY_ENOTS_WOLLEY_DEFINITIONS",
     "ReferenceEveryKthPrimeEnotsWolleyGenerator",
+    "ReferenceEveryKthPrimeOnlyEnotsWolleyGenerator",
     "ReferenceFactorRestrictedEnotsWolleyGenerator",
     "SQUAREFREE_EXACT_TRIPRIMARY_ENOTS_WOLLEY",
     "SQUAREFREE_SEMIPRIME_ENOTS_WOLLEY",
@@ -84,7 +102,9 @@ __all__ = [
     "X000005_POLICY",
     "big_omega",
     "is_every_kth_prime",
+    "is_retained_prime",
     "make_every_kth_prime_enots_wolley_definition",
+    "make_every_kth_prime_only_enots_wolley_definition",
     "make_factor_restricted_enots_wolley_definition",
     "nth_prime",
     "omega",
@@ -100,4 +120,6 @@ def register_builtins(registry: SequenceRegistry) -> None:
     for definition in PRIMARY_ENOTS_WOLLEY_DEFINITIONS:
         registry.register(definition)
     for definition in EVERY_KTH_PRIME_ENOTS_WOLLEY_DEFINITIONS:
+        registry.register(definition)
+    for definition in EVERY_KTH_PRIME_ONLY_ENOTS_WOLLEY_DEFINITIONS:
         registry.register(definition)
