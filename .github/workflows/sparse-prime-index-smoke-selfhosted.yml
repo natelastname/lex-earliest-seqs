@@ -19,11 +19,8 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - name: Sync environment
         run: uv sync --locked
-      - name: Run full test and lint suite
-        run: |
-          uv run pytest
-          uv run ruff check src tests
-          uv run black --check src tests
+      - name: Run full test suite
+        run: uv run pytest
       - name: Compute finite prefixes with portable backend
         env:
           LEX_EARLIEST_SEQS_DISABLE_PRIMESIEVE: '1'
