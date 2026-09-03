@@ -9,7 +9,6 @@ from lex_earliest_seqs.zoo.enots_wolley import prime_support
 from lex_earliest_seqs.zoo.sparse_prime_index_candidate_optimized import (
     PowerOfTwoIndexPrimeOnlyEnotsWolleyGenerator,
     SelfPowerIndexPrimeOnlyEnotsWolleyGenerator,
-    SquareIndexPrimeOnlyEnotsWolleyGenerator,
 )
 from lex_earliest_seqs.zoo.sparse_prime_index_only_enots_wolley import (
     ReferenceSparsePrimeIndexOnlyEnotsWolleyGenerator,
@@ -17,6 +16,9 @@ from lex_earliest_seqs.zoo.sparse_prime_index_only_enots_wolley import (
     SparsePrimeIndexOnlyPolicy,
     is_retained_prime,
     is_retained_prime_index,
+)
+from lex_earliest_seqs.zoo.square_index_prime_only_optimized import (
+    SquareIndexPrimeOnlyEnotsWolleyGenerator,
 )
 
 
@@ -317,11 +319,13 @@ def test_generator_pickle_resumes(generator_type, first_count, second_count):
     assert restored.term_support_masks == fresh.term_support_masks
 
 
-def test_square_uses_heap_monoid_backend():
+def test_square_uses_compact_heap_stream_cursor_backend():
     generator = SquareIndexPrimeOnlyEnotsWolleyGenerator()
     generator.extend_to(500)
     assert generator.monoid_heap
-    assert generator.pair_multiplier_successors
+    assert generator.multiplier_successors
+    assert generator.stream_state_cursors
+    assert not hasattr(generator, "pair_multiplier_successors")
 
 
 @pytest.mark.parametrize(
@@ -331,7 +335,7 @@ def test_square_uses_heap_monoid_backend():
         SelfPowerIndexPrimeOnlyEnotsWolleyGenerator,
     ],
 )
-def test_very_sparse_families_use_pointer_monoid_backend(generator_type):
+def test_very_sparse_families_use_pointer_pair_backend(generator_type):
     generator = generator_type()
     generator.extend_to(20)
     assert generator.monoid_stream_indices
