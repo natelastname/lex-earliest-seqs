@@ -162,8 +162,6 @@ class FullReturnEnotsWolleyGenerator(EnotsWolleyGenerator):
             if introduces_new_prime and return_allowed:
                 return candidate
 
-            # Full-return failures are local; only genuinely used products are
-            # permanently removed by the inherited successor structure.
             next_lower_bound = multiplier if candidate in self.used else multiplier + 1
             multiplier = self._next_stream_multiplier(
                 stream_prime,
