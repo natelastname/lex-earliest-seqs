@@ -4,10 +4,12 @@ import pytest
 
 from lex_earliest_seqs import registry
 from lex_earliest_seqs.cache import open_run
-from lex_earliest_seqs.zoo.full_return_enots_wolley import (
+from lex_earliest_seqs.zoo import (
     FULL_RETURN_EW_2_3,
     FULL_RETURN_EW_2_5,
     FULL_RETURN_EW_3_5,
+)
+from lex_earliest_seqs.zoo.full_return_enots_wolley import (
     FullReturnEnotsWolleyGenerator,
     ReferenceFullReturnEnotsWolleyGenerator,
     _multiplier_introduces_new_prime,
@@ -50,7 +52,7 @@ def test_multiplier_new_prime_test_is_exact_for_stream_cofactors():
     ("sequence_id", "alias", "pair", "expected"),
     [
         (
-            "X000015",
+            "X000012",
             "fr-ew-2-3",
             (2, 3),
             [
@@ -62,7 +64,7 @@ def test_multiplier_new_prime_test_is_exact_for_stream_cofactors():
             ],
         ),
         (
-            "X000016",
+            "X000013",
             "fr-ew-2-5",
             (2, 5),
             [
@@ -74,7 +76,7 @@ def test_multiplier_new_prime_test_is_exact_for_stream_cofactors():
             ],
         ),
         (
-            "X000017",
+            "X000014",
             "fr-ew-3-5",
             (3, 5),
             [
@@ -104,9 +106,15 @@ def test_registered_full_return_prefixes(sequence_id, alias, pair, expected):
 
 
 def test_registered_definition_constants_have_expected_ids():
-    assert FULL_RETURN_EW_2_3.id == "X000015"
-    assert FULL_RETURN_EW_2_5.id == "X000016"
-    assert FULL_RETURN_EW_3_5.id == "X000017"
+    assert FULL_RETURN_EW_2_3.id == "X000012"
+    assert FULL_RETURN_EW_2_5.id == "X000013"
+    assert FULL_RETURN_EW_3_5.id == "X000014"
+
+
+def test_x000015_through_x000017_are_not_registered():
+    for sequence_id in ("X000015", "X000016", "X000017"):
+        with pytest.raises(KeyError):
+            registry.resolve(sequence_id)
 
 
 @pytest.mark.parametrize("pair", [(2, 3), (2, 5), (3, 5), (2, 7), (5, 7)])
