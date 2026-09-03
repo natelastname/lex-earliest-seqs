@@ -19,45 +19,31 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - name: Sync environment
         run: uv sync --locked
-      - name: Compare portable X000014 engines
+      - name: Scale portable X000014 with cached coordinates
         env:
           LEX_EARLIEST_SEQS_DISABLE_PRIMECOUNT: '1'
           LEX_EARLIEST_SEQS_DISABLE_PRIMESIEVE: '1'
         run: |
-          set -o pipefail
-          for engine in old table; do
-            ENGINE="$engine" /usr/bin/time -f "$engine elapsed=%e maxrss_kb=%M" timeout 8m \
-              uv run python - <<'PY'
-          import os
+          /usr/bin/time -f 'X000014 elapsed=%e maxrss_kb=%M' timeout 5m \
+            uv run python - <<'PY'
           from time import perf_counter
+          from lex_earliest_seqs import registry
 
-          if os.environ['ENGINE'] == 'old':
-              from lex_earliest_seqs.zoo.sparse_prime_index_candidate_optimized import (
-                  SelfPowerIndexPrimeOnlyEnotsWolleyGenerator,
-              )
-          else:
-              from lex_earliest_seqs.zoo.self_power_index_prime_only_optimized import (
-                  SelfPowerIndexPrimeOnlyEnotsWolleyGenerator,
-              )
-
-          g = SelfPowerIndexPrimeOnlyEnotsWolleyGenerator()
-          for count in (20, 30, 40, 60, 100):
+          generator = registry.resolve('X000014').generator_factory()
+          for count in (100, 1_000, 10_000):
               start = perf_counter()
-              g.extend_to(count)
+              generator.extend_to(count)
               print(
-                  f"{os.environ['ENGINE'].upper()} count={count} "
-                  f"delta={perf_counter()-start:.6f} "
-                  f"primes={len(g.retained_primes)} "
-                  f"multipliers={len(g.multiplier_values)} "
-                  f"max_term={max(g.terms)}",
+                  f'X000014 count={count} delta={perf_counter()-start:.6f} '
+                  f'primes={len(generator.retained_primes)} '
+                  f'multipliers={len(generator.multiplier_values)} '
+                  f'max_term={max(generator.terms)}',
                   flush=True,
               )
           PY
-          done
-      - name: Run relevant tests with durations
+      - name: Check formatting and imports
         run: |
-          uv run pytest -q --durations=20 \
-            tests/test_self_power_index_prime_only_optimized.py \
-            tests/test_sparse_prime_index_only_enots_wolley.py \
-            tests/test_scalable_prime_lookup.py \
-            tests/test_prime_coordinate_multiplier_optimization.py
+          uv run black --check src tests
+          uv run ruff check src tests
+      - name: Run full test suite with durations
+        run: uv run pytest -q --durations=30
