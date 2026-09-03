@@ -276,6 +276,30 @@ def test_generator_pickle_resumes(family, first_count, second_count):
     assert restored.term_support_masks == fresh.term_support_masks
 
 
+def test_pickle_resume_reseeds_high_index_prime_cursor(monkeypatch):
+    generator = SparsePrimeIndexOnlyEnotsWolleyGenerator(family="self_power")
+    generator.extend_to(20)
+    restored = pickle.loads(pickle.dumps(generator))
+
+    checkpoint_position = len(restored.retained_primes) - 1
+    checkpoint = (
+        restored._allowed_prime_index(checkpoint_position),
+        restored.retained_primes[checkpoint_position],
+    )
+    next_position = len(restored.retained_primes)
+    calls: list[tuple[int, int]] = []
+
+    monkeypatch.setattr(
+        sparse_module,
+        "remember_nth_prime",
+        lambda index, prime: calls.append((index, prime)),
+    )
+    monkeypatch.setattr(sparse_module, "nth_prime", lambda _index: 999_983)
+
+    assert restored._prime_at_position(next_position) == 999_983
+    assert calls == [checkpoint]
+
+
 def test_registered_definition_constants_have_expected_ids():
     assert SQUARE_INDEX_PRIME_ONLY_ENOTS_WOLLEY.id == "X000012"
     assert POWER_OF_TWO_INDEX_PRIME_ONLY_ENOTS_WOLLEY.id == "X000013"
