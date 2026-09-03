@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from ..core import SequenceRegistry
 from .binary_enots_wolley import BINARY_ENOTS_WOLLEY, BinaryEnotsWolleyGenerator
 from .enots_wolley import ENOTS_WOLLEY, EnotsWolleyGenerator
@@ -19,10 +21,6 @@ from .every_kth_prime_enots_wolley import (
     prime_index,
 )
 from .every_kth_prime_only_enots_wolley import (
-    EVERY_FOURTH_PRIME_ONLY_ENOTS_WOLLEY,
-    EVERY_KTH_PRIME_ONLY_ENOTS_WOLLEY_DEFINITIONS,
-    EVERY_SECOND_PRIME_ONLY_ENOTS_WOLLEY,
-    EVERY_THIRD_PRIME_ONLY_ENOTS_WOLLEY,
     EveryKthPrimeOnlyEnotsWolleyGenerator,
     EveryKthPrimeOnlyPolicy,
     ReferenceEveryKthPrimeOnlyEnotsWolleyGenerator,
@@ -43,10 +41,9 @@ from .forced_squarefree_enots_wolley import (
     ForcedSquarefreeEnotsWolleyGenerator,
 )
 from .full_return_enots_wolley import (
-    FULL_RETURN_ENOTS_WOLLEY_DEFINITIONS,
-    FULL_RETURN_EW_2_3,
-    FULL_RETURN_EW_2_5,
-    FULL_RETURN_EW_3_5,
+    FULL_RETURN_EW_2_3 as _FULL_RETURN_EW_2_3,
+    FULL_RETURN_EW_2_5 as _FULL_RETURN_EW_2_5,
+    FULL_RETURN_EW_3_5 as _FULL_RETURN_EW_3_5,
     FullReturnEnotsWolleyGenerator,
     ReferenceFullReturnEnotsWolleyGenerator,
     full_return_candidate_allowed,
@@ -55,7 +52,7 @@ from .full_return_enots_wolley import (
     target_free,
 )
 from .power_of_two_index_prime_only_optimized import (
-    POWER_OF_TWO_INDEX_PRIME_ONLY_ENOTS_WOLLEY,
+    POWER_OF_TWO_INDEX_PRIME_ONLY_ENOTS_WOLLEY as _POWER_OF_TWO_INDEX_PRIME_ONLY_ENOTS_WOLLEY,
     PowerOfTwoIndexPrimeOnlyEnotsWolleyGenerator,
 )
 from .primary_enots_wolley import (
@@ -72,7 +69,7 @@ from .primary_enots_wolley import (
     X000005_POLICY,
 )
 from .sparse_prime_index_candidate_optimized import (
-    SELF_POWER_INDEX_PRIME_ONLY_ENOTS_WOLLEY,
+    SELF_POWER_INDEX_PRIME_ONLY_ENOTS_WOLLEY as _SELF_POWER_INDEX_PRIME_ONLY_ENOTS_WOLLEY,
     PairFrontierSparsePrimeIndexOnlyEnotsWolleyGenerator,
     PointerMonoidPairFrontierSparsePrimeIndexOnlyEnotsWolleyGenerator,
     SelfPowerIndexPrimeOnlyEnotsWolleyGenerator,
@@ -85,7 +82,7 @@ from .sparse_prime_index_only_enots_wolley import (
     make_sparse_prime_index_only_enots_wolley_definition,
 )
 from .square_index_prime_only_optimized import (
-    SQUARE_INDEX_PRIME_ONLY_ENOTS_WOLLEY,
+    SQUARE_INDEX_PRIME_ONLY_ENOTS_WOLLEY as _SQUARE_INDEX_PRIME_ONLY_ENOTS_WOLLEY,
     SquareIndexPrimeOnlyEnotsWolleyGenerator,
 )
 from .squarefree_semiprime_enots_wolley import (
@@ -94,10 +91,36 @@ from .squarefree_semiprime_enots_wolley import (
     SquarefreeSemiprimeEnotsWolleyGenerator,
 )
 
+# The every-kth-prime-only stride generators remain available as generic research
+# utilities, but their accidental X000009--X000011 registrations are intentionally
+# not built-ins. Those IDs belong to the sparse large-gap prime-index families.
+SQUARE_INDEX_PRIME_ONLY_ENOTS_WOLLEY = replace(
+    _SQUARE_INDEX_PRIME_ONLY_ENOTS_WOLLEY,
+    id="X000009",
+)
+POWER_OF_TWO_INDEX_PRIME_ONLY_ENOTS_WOLLEY = replace(
+    _POWER_OF_TWO_INDEX_PRIME_ONLY_ENOTS_WOLLEY,
+    id="X000010",
+)
+SELF_POWER_INDEX_PRIME_ONLY_ENOTS_WOLLEY = replace(
+    _SELF_POWER_INDEX_PRIME_ONLY_ENOTS_WOLLEY,
+    id="X000011",
+)
+
 SPARSE_PRIME_INDEX_ONLY_ENOTS_WOLLEY_DEFINITIONS = (
     SQUARE_INDEX_PRIME_ONLY_ENOTS_WOLLEY,
     POWER_OF_TWO_INDEX_PRIME_ONLY_ENOTS_WOLLEY,
     SELF_POWER_INDEX_PRIME_ONLY_ENOTS_WOLLEY,
+)
+
+FULL_RETURN_EW_2_3 = replace(_FULL_RETURN_EW_2_3, id="X000012")
+FULL_RETURN_EW_2_5 = replace(_FULL_RETURN_EW_2_5, id="X000013")
+FULL_RETURN_EW_3_5 = replace(_FULL_RETURN_EW_3_5, id="X000014")
+
+FULL_RETURN_ENOTS_WOLLEY_DEFINITIONS = (
+    FULL_RETURN_EW_2_3,
+    FULL_RETURN_EW_2_5,
+    FULL_RETURN_EW_3_5,
 )
 
 __all__ = [
@@ -106,13 +129,9 @@ __all__ = [
     "BinaryEnotsWolleyGenerator",
     "ENOTS_WOLLEY",
     "EVERY_FOURTH_PRIME_ENOTS_WOLLEY",
-    "EVERY_FOURTH_PRIME_ONLY_ENOTS_WOLLEY",
     "EVERY_KTH_PRIME_ENOTS_WOLLEY_DEFINITIONS",
-    "EVERY_KTH_PRIME_ONLY_ENOTS_WOLLEY_DEFINITIONS",
     "EVERY_SECOND_PRIME_ENOTS_WOLLEY",
-    "EVERY_SECOND_PRIME_ONLY_ENOTS_WOLLEY",
     "EVERY_THIRD_PRIME_ENOTS_WOLLEY",
-    "EVERY_THIRD_PRIME_ONLY_ENOTS_WOLLEY",
     "EWFactorPolicy",
     "EXACT_TRIPRIMARY_ENOTS_WOLLEY",
     "EnotsWolleyGenerator",
@@ -183,8 +202,6 @@ def register_builtins(registry: SequenceRegistry) -> None:
     for definition in PRIMARY_ENOTS_WOLLEY_DEFINITIONS:
         registry.register(definition)
     for definition in EVERY_KTH_PRIME_ENOTS_WOLLEY_DEFINITIONS:
-        registry.register(definition)
-    for definition in EVERY_KTH_PRIME_ONLY_ENOTS_WOLLEY_DEFINITIONS:
         registry.register(definition)
     for definition in SPARSE_PRIME_INDEX_ONLY_ENOTS_WOLLEY_DEFINITIONS:
         registry.register(definition)
