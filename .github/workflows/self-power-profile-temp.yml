@@ -1,0 +1,85 @@
+name: Temporary self-power profile
+
+on:
+  push:
+    branches:
+      - perf/self-power-prime-coordinate-20260903
+  workflow_dispatch:
+
+concurrency:
+  group: self-power-profile-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  profile:
+    runs-on: self-hosted
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Sync environment
+        run: uv sync --locked
+      - name: Baseline portable X000014
+        continue-on-error: true
+        env:
+          LEX_EARLIEST_SEQS_DISABLE_PRIMECOUNT: '1'
+          LEX_EARLIEST_SEQS_DISABLE_PRIMESIEVE: '1'
+        run: |
+          set -o pipefail
+          /usr/bin/time -f 'BASELINE elapsed=%e maxrss_kb=%M' timeout 5m \
+            uv run python - <<'PY'
+          from time import perf_counter
+          from lex_earliest_seqs import registry
+
+          g = registry.resolve('X000014').generator_factory()
+          for count in (20, 30, 40, 60, 100):
+              start = perf_counter()
+              g.extend_to(count)
+              print(
+                  f'BASELINE count={count} delta={perf_counter()-start:.6f} '
+                  f'primes={len(g.retained_primes)} multipliers={len(g.multiplier_values)} '
+                  f'max_term={max(g.terms)}',
+                  flush=True,
+              )
+          PY
+      - name: Prototype precomputed self-power coordinates
+        env:
+          LEX_EARLIEST_SEQS_DISABLE_PRIMECOUNT: '1'
+          LEX_EARLIEST_SEQS_DISABLE_PRIMESIEVE: '1'
+        run: |
+          set -o pipefail
+          /usr/bin/time -f 'TABLE elapsed=%e maxrss_kb=%M' timeout 5m \
+            uv run python - <<'PY'
+          from time import perf_counter
+          from lex_earliest_seqs import registry
+          from lex_earliest_seqs.zoo import sparse_prime_index_only_enots_wolley as sparse
+
+          exact = {
+              1: 2,
+              4: 7,
+              27: 103,
+              256: 1619,
+              3125: 28687,
+              46656: 567871,
+              823543: 12579617,
+              16777216: 310248241,
+              387420489: 8448283757,
+              10000000000: 252097800623,
+          }
+          original = sparse.nth_prime
+          def table_nth_prime(index):
+              value = exact.get(index)
+              return value if value is not None else original(index)
+          sparse.nth_prime = table_nth_prime
+
+          g = registry.resolve('X000014').generator_factory()
+          for count in (20, 30, 40, 60, 100):
+              start = perf_counter()
+              g.extend_to(count)
+              print(
+                  f'TABLE count={count} delta={perf_counter()-start:.6f} '
+                  f'primes={len(g.retained_primes)} multipliers={len(g.multiplier_values)} '
+                  f'max_term={max(g.terms)}',
+                  flush=True,
+              )
+          PY
