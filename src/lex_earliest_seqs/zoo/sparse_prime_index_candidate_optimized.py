@@ -5,20 +5,20 @@ prime and scans the global retained multiplicative monoid until a multiplier
 both avoids the two-back support and contains novelty.
 
 For very sparse prime alphabets that still does unnecessary work: novelty is
-known to contain at least one retained prime q outside the predecessor.  This
+known to contain at least one retained prime q outside the predecessor. This
 module makes that coordinate explicit and searches canonical pair streams
 
     p_retained * q_new * m.
 
 The factor q_new guarantees novelty, so the residual multiplier m can start at
-1.  This avoids materializing the global monoid all the way up to q_new merely
+1. This avoids materializing the global monoid all the way up to q_new merely
 to discover q_new inside a multiplier.
 
 The three registered families use two monoid backends:
 
 * square-index primes keep the heap merge, which scales better once many
   retained prime streams are open;
-* power-of-two and self-power indices use a simple pointer merge.  Their prime
+* power-of-two and self-power indices use a simple pointer merge. Their prime
   alphabets are so sparse that a linear scan across the few open streams is
   cheaper and avoids heap duplicate traffic.
 
@@ -41,6 +41,7 @@ from .sparse_prime_index_only_enots_wolley import (
 )
 
 PairKey = tuple[int, int]
+PairForbiddenKey = tuple[int, int, int]
 
 
 @dataclass
@@ -59,28 +60,26 @@ class PairFrontierSparsePrimeIndexOnlyEnotsWolleyGenerator(
     permanently skip residual multipliers whose full product has already been
     selected.
 
+    A second cache remembers the first residual multiplier not already ruled out
+    by each dynamic forbidden-support mask. Repeated local support states can
+    therefore resume at their old frontier instead of rescanning the same prefix.
+
     The inherited single-prime ``multiplier_successors`` table is deliberately
     unused. A pair stream discovers a globally used product lazily and retires
-    only that pair's residual multiplier. Maintaining the old per-p stream
-    retirement state would duplicate work without helping candidate lookup.
+    only that pair's residual multiplier.
     """
 
     pair_multiplier_successors: dict[PairKey, dict[int, int]] = field(
         default_factory=dict,
         repr=False,
     )
+    pair_forbidden_cursors: dict[PairForbiddenKey, int] = field(
+        default_factory=dict,
+        repr=False,
+    )
 
     def _retire_used_value(self, value: int, support_mask: int) -> None:
-        """Do nothing; pair streams retire used products lazily.
-
-        ``SparsePrimeIndexOnlyEnotsWolleyGenerator.extend_to`` calls this hook
-        after selecting a term. The generic engine eagerly deletes each
-        single-prime representation from ``multiplier_successors``. Pair-frontier
-        candidate lookup never consults that structure: it checks ``self.used``
-        in the canonical ``(p, q)`` stream and then permanently advances that
-        pair's successor table. Avoiding eager retirement saves a bisect plus
-        one successor update for every prime factor of every selected term.
-        """
+        """Do nothing; pair streams retire used products lazily."""
 
         del value, support_mask
 
@@ -113,22 +112,37 @@ class PairFrontierSparsePrimeIndexOnlyEnotsWolleyGenerator(
         forbidden_mask: int,
         candidate_limit: int | None,
     ) -> int | None:
-        """Return the first residual multiplier giving a valid unused product."""
+        """Return the first residual multiplier giving a valid unused product.
 
-        index = self._find_pair_successor(pair, max(0, lower_index))
+        ``pair_forbidden_cursors`` is monotone for one dynamic support state:
+        indices below the cursor were either structurally forbidden or have been
+        permanently deleted as globally used pair products. The returned unused
+        head itself is retained as the cursor, because another pair may win the
+        global arbitration and leave this product available next time.
+        """
+
+        cursor_key = (pair[0], pair[1], forbidden_mask)
+        index = max(lower_index, self.pair_forbidden_cursors.get(cursor_key, 0))
+        index = self._find_pair_successor(pair, index)
+
         while True:
             multiplier = self.multiplier_values[index]
             candidate = base_product * multiplier
             if candidate_limit is not None and candidate >= candidate_limit:
+                self.pair_forbidden_cursors[cursor_key] = index
                 return None
 
             if candidate in self.used:
                 index = self._delete_pair_multiplier_index(pair, index)
+                self.pair_forbidden_cursors[cursor_key] = index
                 continue
 
             if self.multiplier_support_masks[index] & forbidden_mask == 0:
+                self.pair_forbidden_cursors[cursor_key] = index
                 return index
+
             index = self._find_pair_successor(pair, index + 1)
+            self.pair_forbidden_cursors[cursor_key] = index
 
     @staticmethod
     def _least_zero_position(mask: int) -> int:

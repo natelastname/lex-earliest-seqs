@@ -1,21 +1,23 @@
 """Scalable exact nth-prime lookup for sparse prime-coordinate sequences.
 
 The ordinary prime-index table is ideal for small values because it supports
-both ``p_n`` and inverse prime-index queries.  It is a poor fit for indices such
+both ``p_n`` and inverse prime-index queries. It is a poor fit for indices such
 as ``8**8``: tabulating every integer through ``p_n`` consumes far more memory
 than the sparse sequence itself.
 
 This module provides a narrow exact ``nth_prime`` service:
 
-1. use the optional :mod:`primesieve` C++ binding when it is installed;
-2. otherwise advance a bounded-memory segmented odd sieve.
+1. for very large isolated indices, use the optional ``primecount`` executable
+   when it is installed; its nth-prime algorithm combines prime counting near a
+   close approximation with a short final sieve;
+2. otherwise use the optional :mod:`primesieve` C++ binding when installed;
+3. otherwise advance a bounded-memory segmented odd sieve.
 
-Both backends exploit the increasing query order of sparse prime-coordinate
-families.  Dense small-index lookups seed the scalable cursors.  The C++ backend
-then asks for the index gap after the nearest known lower prime instead of
-restarting at zero, while the fallback advances from the largest exact dense or
-segmented checkpoint.  Out-of-order fallback queries remain correct; they use a
-temporary fresh cursor rather than corrupting the forward state.
+The primesieve and segmented backends exploit the increasing query order of
+sparse prime-coordinate families. Dense small-index lookups seed their cursors.
+The primecount backend is deliberately stateless because its direct nth-prime
+algorithm is preferable to sieving an enormous gap from the previous
+``p_{i^i}`` coordinate.
 """
 
 from __future__ import annotations
@@ -25,6 +27,8 @@ from functools import cache
 from importlib import import_module
 from math import isqrt, log
 from os import environ
+from shutil import which
+from subprocess import CalledProcessError, run
 from threading import Lock
 from types import ModuleType
 
@@ -32,10 +36,18 @@ from types import ModuleType
 # integers per segment while using one MiB of temporary marking storage.
 _SEGMENT_ODD_COUNT = 1 << 20
 
+# Below this index, a checkpointed primesieve/segmented walk is generally cheap
+# and avoids process-start overhead. Above it, primecount's direct nth-prime
+# algorithm is the better shape when the executable is available.
+_PRIMECOUNT_INDEX_THRESHOLD = 1_000_000
+
+_PRIMECOUNT_UNCHECKED = object()
+_primecount_executable: str | None | object = _PRIMECOUNT_UNCHECKED
+
 _PRIMESIEVE_UNCHECKED = object()
 _primesieve_module: ModuleType | None | object = _PRIMESIEVE_UNCHECKED
 
-# Exact backend queries are retained in sorted index order.  primesieve supports
+# Exact backend queries are retained in sorted index order. primesieve supports
 # nth_prime(gap, start), so every later sparse coordinate can begin after the
 # closest cached coordinate instead of recounting from 2.
 _backend_lock = Lock()
@@ -56,6 +68,43 @@ def _validate_index(index: int) -> None:
         raise TypeError("prime index must be an integer")
     if index < 1:
         raise ValueError("prime index must be positive")
+
+
+def _load_primecount_executable() -> str | None:
+    """Return the optional primecount executable path once discovered."""
+
+    global _primecount_executable
+
+    if environ.get("LEX_EARLIEST_SEQS_DISABLE_PRIMECOUNT") == "1":
+        return None
+    if _primecount_executable is _PRIMECOUNT_UNCHECKED:
+        _primecount_executable = which("primecount")
+    assert _primecount_executable is None or isinstance(_primecount_executable, str)
+    return _primecount_executable
+
+
+def _primecount_nth_prime(executable: str, index: int) -> int:
+    """Return ``p_index`` using primecount's direct nth-prime CLI."""
+
+    try:
+        completed = run(
+            [executable, str(index), "--nth-prime"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, CalledProcessError) as exc:
+        raise RuntimeError(f"primecount nth-prime lookup failed for n={index}") from exc
+
+    tokens = completed.stdout.replace(",", " ").split()
+    for token in reversed(tokens):
+        if token.isdigit():
+            value = int(token)
+            if value >= 2:
+                return value
+    raise RuntimeError(
+        f"primecount returned no parseable prime for n={index}: {completed.stdout!r}"
+    )
 
 
 def _load_primesieve() -> ModuleType | None:
@@ -85,7 +134,7 @@ def _nth_prime_upper_bound(index: int) -> int:
     if index <= len(small):
         return small[index - 1]
     n = float(index)
-    # Rosser's p_n < n(log n + log log n) bound holds for n >= 6.  A small
+    # Rosser's p_n < n(log n + log log n) bound holds for n >= 6. A small
     # relative margin protects floating conversion for large machine indices.
     return int(n * (log(n) + log(log(n))) * 1.000001) + 64
 
@@ -121,7 +170,7 @@ def _advance_segmented(
 ) -> tuple[int, int, int]:
     """Advance a segmented sieve cursor to exactly ``target_index``.
 
-    Returns ``(prime, new_count, new_scanned_through)``.  The cursor deliberately
+    Returns ``(prime, new_count, new_scanned_through)``. The cursor deliberately
     stops at the requested prime instead of counting the rest of its final
     segment, making it valid to resume from that exact value.
     """
@@ -229,7 +278,7 @@ def _primesieve_nth_prime(backend: ModuleType, index: int) -> int:
 
 
 def remember_nth_prime(index: int, prime: int) -> None:
-    """Seed both scalable backends with an externally established exact p_n."""
+    """Seed checkpointed scalable backends with an established exact p_n."""
 
     global _segment_count, _segment_scanned_through
 
@@ -258,9 +307,15 @@ def remember_nth_prime(index: int, prime: int) -> None:
 
 @cache
 def scalable_nth_prime(index: int) -> int:
-    """Return the one-based ``index``-th prime with bounded fallback memory."""
+    """Return the one-based ``index``-th prime with scalable optional backends."""
 
     _validate_index(index)
+
+    if index >= _PRIMECOUNT_INDEX_THRESHOLD:
+        executable = _load_primecount_executable()
+        if executable is not None:
+            return _primecount_nth_prime(executable, index)
+
     backend = _load_primesieve()
     if backend is not None:
         return _primesieve_nth_prime(backend, index)
@@ -270,11 +325,12 @@ def scalable_nth_prime(index: int) -> int:
 def _reset_for_tests() -> None:
     """Reset module caches; intended only for deterministic fallback tests."""
 
-    global _primesieve_module
+    global _primecount_executable, _primesieve_module
     global _backend_indices, _backend_primes
     global _base_prime_limit, _base_primes
     global _segment_count, _segment_scanned_through, _segment_requested_results
 
+    _primecount_executable = _PRIMECOUNT_UNCHECKED
     with _backend_lock:
         _primesieve_module = _PRIMESIEVE_UNCHECKED
         _backend_indices = [1]
