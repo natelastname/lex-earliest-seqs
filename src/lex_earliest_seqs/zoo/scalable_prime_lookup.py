@@ -18,12 +18,23 @@ from functools import cache
 
 from primecountpy.primecount import nth_prime as primecount_nth_prime
 
+# primecount's nth_prime() returns a signed 64-bit prime. This is exactly the
+# number of primes below 2^63, and is enforced by primecount itself. Check it in
+# Python first so callers get a stable, intelligible exception instead of a C++
+# backend abort.
+MAX_DIRECT_NTH_PRIME_INDEX = 216_289_611_853_439_384
+
 
 def _validate_index(index: int) -> None:
     if type(index) is not int:
         raise TypeError("prime index must be an integer")
     if index < 1:
         raise ValueError("prime index must be positive")
+    if index > MAX_DIRECT_NTH_PRIME_INDEX:
+        raise OverflowError(
+            "primecountpy nth_prime supports indices through "
+            f"{MAX_DIRECT_NTH_PRIME_INDEX:,}; got {index:,}"
+        )
 
 
 @cache
