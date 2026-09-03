@@ -10,15 +10,16 @@ This module provides a narrow exact ``nth_prime`` service:
 1. use the optional :mod:`primesieve` C++ binding when it is installed;
 2. otherwise advance a bounded-memory segmented odd sieve.
 
-The fallback keeps a process-global forward cursor because sparse retained-prime
-indices are requested in increasing order by the generators.  Out-of-order
-queries remain correct; they use a temporary fresh cursor rather than corrupting
-the forward state.
+Both backends exploit the increasing query order of sparse prime-coordinate
+families.  The C++ backend asks for the index gap after the nearest known lower
+prime instead of restarting at zero.  The fallback keeps a process-global
+forward cursor.  Out-of-order fallback queries remain correct; they use a
+temporary fresh cursor rather than corrupting the forward state.
 """
 
 from __future__ import annotations
 
-from bisect import bisect_right
+from bisect import bisect_left, bisect_right
 from functools import cache
 from importlib import import_module
 from math import isqrt, log
@@ -32,6 +33,13 @@ _SEGMENT_ODD_COUNT = 1 << 20
 
 _PRIMESIEVE_UNCHECKED = object()
 _primesieve_module: ModuleType | None | object = _PRIMESIEVE_UNCHECKED
+
+# Exact backend queries are retained in sorted index order.  primesieve supports
+# nth_prime(gap, start), so every later sparse coordinate can begin after the
+# closest cached coordinate instead of recounting from 2.
+_backend_lock = Lock()
+_backend_indices: list[int] = [1]
+_backend_primes: list[int] = [2]
 
 _base_prime_limit = 1
 _base_primes: list[int] = []
@@ -197,6 +205,28 @@ def _segmented_nth_prime(index: int) -> int:
         return prime
 
 
+def _primesieve_nth_prime(backend: ModuleType, index: int) -> int:
+    """Use the nearest known lower prime as primesieve's starting point."""
+
+    with _backend_lock:
+        insertion = bisect_left(_backend_indices, index)
+        if insertion < len(_backend_indices) and _backend_indices[insertion] == index:
+            return _backend_primes[insertion]
+
+        if insertion == 0:
+            value = int(backend.nth_prime(index))
+        else:
+            lower_index = _backend_indices[insertion - 1]
+            lower_prime = _backend_primes[insertion - 1]
+            value = int(backend.nth_prime(index - lower_index, lower_prime))
+
+        if value < 2:
+            raise RuntimeError("primesieve returned an invalid nth prime")
+        _backend_indices.insert(insertion, index)
+        _backend_primes.insert(insertion, value)
+        return value
+
+
 @cache
 def scalable_nth_prime(index: int) -> int:
     """Return the one-based ``index``-th prime with bounded fallback memory."""
@@ -204,10 +234,7 @@ def scalable_nth_prime(index: int) -> int:
     _validate_index(index)
     backend = _load_primesieve()
     if backend is not None:
-        value = int(backend.nth_prime(index))
-        if value < 2:
-            raise RuntimeError("primesieve returned an invalid nth prime")
-        return value
+        return _primesieve_nth_prime(backend, index)
     return _segmented_nth_prime(index)
 
 
@@ -215,11 +242,15 @@ def _reset_for_tests() -> None:
     """Reset module caches; intended only for deterministic fallback tests."""
 
     global _primesieve_module
+    global _backend_indices, _backend_primes
     global _base_prime_limit, _base_primes
     global _segment_count, _segment_scanned_through, _segment_requested_results
 
-    with _segment_lock:
+    with _backend_lock:
         _primesieve_module = _PRIMESIEVE_UNCHECKED
+        _backend_indices = [1]
+        _backend_primes = [2]
+    with _segment_lock:
         _base_prime_limit = 1
         _base_primes = []
         _segment_count = 1
