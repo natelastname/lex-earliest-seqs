@@ -4,12 +4,8 @@ from math import isqrt
 import pytest
 
 from lex_earliest_seqs import registry
-from lex_earliest_seqs.cache import open_run
 from lex_earliest_seqs.zoo.enots_wolley import EnotsWolleyGenerator, prime_support
 from lex_earliest_seqs.zoo.every_kth_prime_only_enots_wolley import (
-    EVERY_FOURTH_PRIME_ONLY_ENOTS_WOLLEY,
-    EVERY_SECOND_PRIME_ONLY_ENOTS_WOLLEY,
-    EVERY_THIRD_PRIME_ONLY_ENOTS_WOLLEY,
     EveryKthPrimeOnlyEnotsWolleyGenerator,
     EveryKthPrimeOnlyPolicy,
     ReferenceEveryKthPrimeOnlyEnotsWolleyGenerator,
@@ -87,144 +83,54 @@ def test_policy_matches_independent_prime_index_definition():
 
 
 @pytest.mark.parametrize(
-    ("sequence_id", "alias", "k", "expected"),
+    ("k", "expected"),
     [
         (
-            "X000009",
-            "prime-coordinate-ew-2",
             2,
             [
-                1,
-                2,
-                10,
-                55,
-                187,
-                34,
-                20,
-                115,
-                253,
-                22,
-                40,
-                85,
-                391,
-                46,
-                44,
-                275,
-                155,
-                62,
-                68,
-                425,
-                205,
-                82,
-                88,
-                341,
-                527,
-                136,
-                50,
-                235,
-                517,
-                176,
+                1, 2, 10, 55, 187, 34, 20, 115, 253, 22,
+                40, 85, 391, 46, 44, 275, 155, 62, 68, 425,
+                205, 82, 88, 341, 527, 136, 50, 235, 517, 176,
             ],
         ),
         (
-            "X000010",
-            "prime-coordinate-ew-3",
             3,
             [
-                1,
-                2,
-                14,
-                119,
-                493,
-                58,
-                28,
-                287,
-                697,
-                34,
-                56,
-                203,
-                1189,
-                82,
-                68,
-                833,
-                371,
-                106,
-                116,
-                1421,
-                469,
-                134,
-                136,
-                901,
-                1537,
-                232,
-                98,
-                553,
-                1343,
-                272,
+                1, 2, 14, 119, 493, 58, 28, 287, 697, 34,
+                56, 203, 1189, 82, 68, 833, 371, 106, 116, 1421,
+                469, 134, 136, 901, 1537, 232, 98, 553, 1343, 272,
             ],
         ),
         (
-            "X000011",
-            "prime-coordinate-ew-4",
             4,
             [
-                1,
-                2,
-                22,
-                253,
-                943,
-                82,
-                44,
-                649,
-                1357,
-                46,
-                88,
-                451,
-                2419,
-                118,
-                92,
-                1679,
-                803,
-                176,
-                164,
-                2993,
-                4307,
-                236,
-                184,
-                2231,
-                1067,
-                242,
-                146,
-                7081,
-                3977,
-                328,
+                1, 2, 22, 253, 943, 82, 44, 649, 1357, 46,
+                88, 451, 2419, 118, 92, 1679, 803, 176, 164, 2993,
+                4307, 236, 184, 2231, 1067, 242, 146, 7081, 3977, 328,
             ],
         ),
     ],
 )
-def test_registered_prime_coordinate_prefixes(sequence_id, alias, k, expected):
-    definition = registry.resolve(sequence_id)
-    assert definition.oeis is None
-    assert registry.resolve(alias) is definition
-    assert "prime-exponents" in definition.projections
+def test_stride_prime_coordinate_prefixes_remain_available_as_utilities(k, expected):
+    generator = EveryKthPrimeOnlyEnotsWolleyGenerator(k=k)
+    generator.extend_to(len(expected))
+    assert generator.terms == expected
 
-    generator = definition.generator_factory()
-    assert isinstance(generator, EveryKthPrimeOnlyEnotsWolleyGenerator)
-    assert generator.k == k
-    assert generator.terms == [1, 2]
-
-    run = open_run(definition, use_cache=False)
-    run.ensure(len(expected))
-    assert list(run.terms) == expected
-
-    for term in run.terms[1:]:
+    for term in generator.terms[1:]:
         assert _reference_allowed(term, k)
 
 
-def test_registered_definition_constants_have_expected_ids():
-    assert EVERY_SECOND_PRIME_ONLY_ENOTS_WOLLEY.id == "X000009"
-    assert EVERY_THIRD_PRIME_ONLY_ENOTS_WOLLEY.id == "X000010"
-    assert EVERY_FOURTH_PRIME_ONLY_ENOTS_WOLLEY.id == "X000011"
+def test_stride_prime_coordinate_aliases_are_not_registered_builtins():
+    for alias in (
+        "every-second-prime-only-ew",
+        "every-third-prime-only-ew",
+        "every-fourth-prime-only-ew",
+        "prime-coordinate-ew-2",
+        "prime-coordinate-ew-3",
+        "prime-coordinate-ew-4",
+    ):
+        with pytest.raises(KeyError):
+            registry.resolve(alias)
 
 
 @pytest.mark.parametrize("k", [2, 3, 4, 5])
