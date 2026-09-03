@@ -43,6 +43,23 @@ def test_scalable_nth_prime_rejects_invalid_indices():
         scalable_prime_lookup.scalable_nth_prime(0)
 
 
+def test_scalable_nth_prime_rejects_indices_beyond_primecount_range(monkeypatch):
+    calls: list[int] = []
+
+    def fake_nth_prime(index: int) -> int:
+        calls.append(index)
+        return 3
+
+    scalable_prime_lookup._reset_for_tests()
+    monkeypatch.setattr(scalable_prime_lookup, "primecount_nth_prime", fake_nth_prime)
+
+    limit = scalable_prime_lookup.MAX_DIRECT_NTH_PRIME_INDEX
+    assert scalable_prime_lookup.scalable_nth_prime(limit) == 3
+    with pytest.raises(OverflowError, match="primecountpy nth_prime supports indices"):
+        scalable_prime_lookup.scalable_nth_prime(limit + 1)
+    assert calls == [limit]
+
+
 def test_scalable_nth_prime_rejects_invalid_backend_result(monkeypatch):
     scalable_prime_lookup._reset_for_tests()
     monkeypatch.setattr(scalable_prime_lookup, "primecount_nth_prime", lambda _index: -1)
