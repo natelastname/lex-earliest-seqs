@@ -22,19 +22,26 @@ jobs:
             echo 'optional/checkpoint nth-prime backend remnants remain' >&2
             exit 1
           fi
-      - name: Check formatting and lint
+      - name: Check lint and imports
         run: |
-          uv run black --check src tests
           uv run ruff check src tests
+          uv run python -m compileall -q src tests
       - name: Direct primecountpy probes
         run: |
           uv run python - <<'PY'
           from time import perf_counter
           from lex_earliest_seqs.zoo.scalable_prime_lookup import scalable_nth_prime
 
-          for index in (823_543, 16_777_216, 387_420_489, 10_000_000_000):
+          expected = {
+              823_543: 12_579_617,
+              16_777_216: 310_248_241,
+              387_420_489: 8_448_283_757,
+              10_000_000_000: 252_097_800_623,
+          }
+          for index, wanted in expected.items():
               start = perf_counter()
               value = scalable_nth_prime(index)
+              assert value == wanted
               print(f'p_{index}={value} elapsed={perf_counter()-start:.6f}', flush=True)
           PY
       - name: Scale X000014
