@@ -58,13 +58,10 @@ from .primary_enots_wolley import (
 from .sparse_prime_index_candidate_optimized import (
     POWER_OF_TWO_INDEX_PRIME_ONLY_ENOTS_WOLLEY,
     SELF_POWER_INDEX_PRIME_ONLY_ENOTS_WOLLEY,
-    SPARSE_PRIME_INDEX_ONLY_ENOTS_WOLLEY_DEFINITIONS,
-    SQUARE_INDEX_PRIME_ONLY_ENOTS_WOLLEY,
     PairFrontierSparsePrimeIndexOnlyEnotsWolleyGenerator,
     PointerMonoidPairFrontierSparsePrimeIndexOnlyEnotsWolleyGenerator,
     PowerOfTwoIndexPrimeOnlyEnotsWolleyGenerator,
     SelfPowerIndexPrimeOnlyEnotsWolleyGenerator,
-    SquareIndexPrimeOnlyEnotsWolleyGenerator,
 )
 from .sparse_prime_index_only_enots_wolley import (
     ReferenceSparsePrimeIndexOnlyEnotsWolleyGenerator,
@@ -73,10 +70,20 @@ from .sparse_prime_index_only_enots_wolley import (
     is_retained_prime_index,
     make_sparse_prime_index_only_enots_wolley_definition,
 )
+from .square_index_prime_only_optimized import (
+    SQUARE_INDEX_PRIME_ONLY_ENOTS_WOLLEY,
+    SquareIndexPrimeOnlyEnotsWolleyGenerator,
+)
 from .squarefree_semiprime_enots_wolley import (
     SQUAREFREE_SEMIPRIME_ENOTS_WOLLEY,
     X000000_POLICY,
     SquarefreeSemiprimeEnotsWolleyGenerator,
+)
+
+SPARSE_PRIME_INDEX_ONLY_ENOTS_WOLLEY_DEFINITIONS = (
+    SQUARE_INDEX_PRIME_ONLY_ENOTS_WOLLEY,
+    POWER_OF_TWO_INDEX_PRIME_ONLY_ENOTS_WOLLEY,
+    SELF_POWER_INDEX_PRIME_ONLY_ENOTS_WOLLEY,
 )
 
 __all__ = [
