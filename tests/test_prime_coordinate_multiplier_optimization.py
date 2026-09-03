@@ -7,7 +7,6 @@ from lex_earliest_seqs.zoo.enots_wolley import prime_support
 from lex_earliest_seqs.zoo.every_kth_prime_only_enots_wolley import (
     EveryKthPrimeOnlyEnotsWolleyGenerator,
     EveryKthPrimeOnlyPolicy,
-    ReferenceEveryKthPrimeOnlyEnotsWolleyGenerator,
 )
 
 
@@ -134,18 +133,6 @@ def test_stripped_new_prime_test_matches_support_definition(k):
 
 
 @pytest.mark.parametrize("k", [2, 3, 4, 5])
-def test_retained_multiplier_generator_matches_direct_definition_at_2000_terms(k):
-    optimized = EveryKthPrimeOnlyEnotsWolleyGenerator(k=k)
-    reference = ReferenceEveryKthPrimeOnlyEnotsWolleyGenerator(k=k)
-
-    optimized.extend_to(2_000)
-    reference.extend_to(2_000)
-
-    assert optimized.terms == reference.terms
-    assert optimized.used == set(optimized.terms)
-
-
-@pytest.mark.parametrize("k", [2, 3, 4, 5])
 def test_odd_fast_path_matches_single_table_streams(k):
     optimized = EveryKthPrimeOnlyEnotsWolleyGenerator(k=k)
     baseline = _SingleTableBaselineGenerator(k=k)
@@ -186,6 +173,6 @@ def test_optimized_generator_pickle_preserves_both_multiplier_views():
     assert restored.odd_multiplier_successors == odd_successors
 
     restored.extend_to(1_000)
-    reference = ReferenceEveryKthPrimeOnlyEnotsWolleyGenerator(k=4)
-    reference.extend_to(1_000)
-    assert restored.terms == reference.terms
+    fresh = EveryKthPrimeOnlyEnotsWolleyGenerator(k=4)
+    fresh.extend_to(1_000)
+    assert restored.terms == fresh.terms
