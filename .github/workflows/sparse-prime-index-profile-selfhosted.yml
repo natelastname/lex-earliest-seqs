@@ -7,8 +7,10 @@ on:
     paths:
       - '.github/workflows/sparse-prime-index-profile-selfhosted.yml'
       - 'src/lex_earliest_seqs/zoo/sparse_prime_index_only_enots_wolley.py'
+      - 'src/lex_earliest_seqs/zoo/sparse_prime_index_candidate_optimized.py'
       - 'src/lex_earliest_seqs/zoo/scalable_prime_lookup.py'
       - 'src/lex_earliest_seqs/zoo/every_kth_prime_enots_wolley.py'
+      - 'src/lex_earliest_seqs/zoo/__init__.py'
       - 'tests/test_sparse_prime_index_only_enots_wolley.py'
       - 'tests/test_scalable_prime_lookup.py'
   workflow_dispatch:
@@ -26,7 +28,7 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - name: Sync environment
         run: uv sync --locked
-      - name: Portable bounded-memory profiles
+      - name: Compare generic and family-specialized candidate engines
         env:
           LEX_EARLIEST_SEQS_DISABLE_PRIMESIEVE: '1'
         run: |
@@ -40,31 +42,50 @@ jobs:
           from lex_earliest_seqs.zoo.sparse_prime_index_only_enots_wolley import (
               SparsePrimeIndexOnlyEnotsWolleyGenerator,
           )
+          from lex_earliest_seqs.zoo.sparse_prime_index_candidate_optimized import (
+              PowerOfTwoIndexPrimeOnlyEnotsWolleyGenerator,
+              SelfPowerIndexPrimeOnlyEnotsWolleyGenerator,
+              SquareIndexPrimeOnlyEnotsWolleyGenerator,
+          )
 
           cases = (
-              ('square', 20_000),
-              ('power_of_two', 20_000),
-              ('self_power', 30),
+              ('square', 10_000, SquareIndexPrimeOnlyEnotsWolleyGenerator),
+              ('power_of_two', 10_000, PowerOfTwoIndexPrimeOnlyEnotsWolleyGenerator),
+              ('self_power', 24, SelfPowerIndexPrimeOnlyEnotsWolleyGenerator),
           )
-          for family, count in cases:
-              generator = SparsePrimeIndexOnlyEnotsWolleyGenerator(family=family)
-              profiler = cProfile.Profile()
-              start = time.perf_counter()
-              profiler.enable()
-              generator.extend_to(count)
-              profiler.disable()
-              elapsed = time.perf_counter() - start
+
+          for family, count, optimized_type in cases:
+              timings = {}
+              for label, factory in (
+                  ('generic', lambda family=family: SparsePrimeIndexOnlyEnotsWolleyGenerator(family=family)),
+                  ('optimized', optimized_type),
+              ):
+                  generator = factory()
+                  profiler = cProfile.Profile()
+                  start = time.perf_counter()
+                  profiler.enable()
+                  generator.extend_to(count)
+                  profiler.disable()
+                  elapsed = time.perf_counter() - start
+                  timings[label] = elapsed
+                  print(
+                      f'PROFILE family={family} engine={label} count={count} '
+                      f'seconds={elapsed:.6f} multipliers={len(generator.multiplier_values)} '
+                      f'opened_primes={generator.next_allowed_position} '
+                      f'known_primes={len(generator.retained_primes)} '
+                      f'max_term_bits={max(generator.terms).bit_length()} '
+                      f'pair_streams={len(getattr(generator, "pair_multiplier_successors", {}))}',
+                      flush=True,
+                  )
+                  if label == 'optimized':
+                      stream = io.StringIO()
+                      pstats.Stats(profiler, stream=stream).strip_dirs().sort_stats('cumulative').print_stats(20)
+                      print(stream.getvalue(), flush=True)
               print(
-                  f'PORTABLE family={family} count={count} seconds={elapsed:.6f} '
-                  f'multipliers={len(generator.multiplier_values)} '
-                  f'opened_primes={generator.next_allowed_position} '
-                  f'known_primes={len(generator.retained_primes)} '
-                  f'max_term={max(generator.terms)}',
+                  f'SPEEDUP family={family} generic_over_optimized='
+                  f'{timings["generic"] / timings["optimized"]:.3f}',
                   flush=True,
               )
-              stream = io.StringIO()
-              pstats.Stats(profiler, stream=stream).strip_dirs().sort_stats('cumulative').print_stats(20)
-              print(stream.getvalue(), flush=True)
           PY
       - name: Profile self-power with optional C++ nth-prime backend
         continue-on-error: true
@@ -76,11 +97,11 @@ jobs:
           import pstats
           import time
 
-          from lex_earliest_seqs.zoo.sparse_prime_index_only_enots_wolley import (
-              SparsePrimeIndexOnlyEnotsWolleyGenerator,
+          from lex_earliest_seqs.zoo.sparse_prime_index_candidate_optimized import (
+              SelfPowerIndexPrimeOnlyEnotsWolleyGenerator,
           )
 
-          generator = SparsePrimeIndexOnlyEnotsWolleyGenerator(family='self_power')
+          generator = SelfPowerIndexPrimeOnlyEnotsWolleyGenerator()
           profiler = cProfile.Profile()
           start = time.perf_counter()
           profiler.enable()
@@ -92,7 +113,7 @@ jobs:
               f'multipliers={len(generator.multiplier_values)} '
               f'opened_primes={generator.next_allowed_position} '
               f'known_primes={len(generator.retained_primes)} '
-              f'max_term={max(generator.terms)}',
+              f'max_term_bits={max(generator.terms).bit_length()}',
               flush=True,
           )
           stream = io.StringIO()
