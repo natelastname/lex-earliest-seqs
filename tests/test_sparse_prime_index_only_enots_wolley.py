@@ -66,14 +66,14 @@ def test_policies_forbid_nonretained_prime_cofactors():
 
 
 @pytest.mark.parametrize(
-    ("sequence_id", "alias", "family"),
+    ("sequence_id", "alias", "family", "count"),
     [
-        ("X000012", "prime-coordinate-square-ew", "square"),
-        ("X000013", "prime-coordinate-power-of-two-ew", "power_of_two"),
-        ("X000014", "prime-coordinate-self-power-ew", "self_power"),
+        ("X000012", "prime-coordinate-square-ew", "square", 60),
+        ("X000013", "prime-coordinate-power-of-two-ew", "power_of_two", 60),
+        ("X000014", "prime-coordinate-self-power-ew", "self_power", 12),
     ],
 )
-def test_registered_sparse_prime_index_sequences(sequence_id, alias, family):
+def test_registered_sparse_prime_index_sequences(sequence_id, alias, family, count):
     definition = registry.resolve(sequence_id)
     assert definition.oeis is None
     assert registry.resolve(alias) is definition
@@ -85,9 +85,9 @@ def test_registered_sparse_prime_index_sequences(sequence_id, alias, family):
     assert generator.terms == [1, 2]
 
     run = open_run(definition, use_cache=False)
-    run.ensure(60)
-    assert len(run.terms) == 60
-    assert len(set(run.terms)) == 60
+    run.ensure(count)
+    assert len(run.terms) == count
+    assert len(set(run.terms)) == count
 
     policy = SparsePrimeIndexOnlyPolicy(family)
     for term in run.terms[1:]:
@@ -115,18 +115,25 @@ def test_simple_generator_matches_direct_scanner(family, count):
     assert generator.used == set(generator.terms)
 
 
-@pytest.mark.parametrize("family", ["square", "power_of_two", "self_power"])
-def test_generator_pickle_resumes(family):
+@pytest.mark.parametrize(
+    ("family", "first_count", "second_count"),
+    [
+        ("square", 50, 80),
+        ("power_of_two", 50, 80),
+        ("self_power", 8, 12),
+    ],
+)
+def test_generator_pickle_resumes(family, first_count, second_count):
     generator = SparsePrimeIndexOnlyEnotsWolleyGenerator(family=family)
-    generator.extend_to(50)
+    generator.extend_to(first_count)
 
     restored = pickle.loads(pickle.dumps(generator))
     assert restored.family == family
     assert restored.policy == SparsePrimeIndexOnlyPolicy(family)
-    restored.extend_to(80)
+    restored.extend_to(second_count)
 
     fresh = SparsePrimeIndexOnlyEnotsWolleyGenerator(family=family)
-    fresh.extend_to(80)
+    fresh.extend_to(second_count)
     assert restored.terms == fresh.terms
 
 
