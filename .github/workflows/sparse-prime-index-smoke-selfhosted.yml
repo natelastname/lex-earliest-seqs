@@ -19,11 +19,11 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - name: Sync environment
         run: uv sync --locked
-      - name: Run sparse-family tests
+      - name: Run full test and lint suite
         run: |
-          uv run pytest \
-            tests/test_sparse_prime_index_only_enots_wolley.py \
-            tests/test_scalable_prime_lookup.py
+          uv run pytest
+          uv run ruff check src tests
+          uv run black --check src tests
       - name: Compute finite prefixes with portable backend
         env:
           LEX_EARLIEST_SEQS_DISABLE_PRIMESIEVE: '1'
@@ -38,7 +38,7 @@ jobs:
           done
 
           # The retained indices 1^1,2^2,3^3,... grow too fast for term count
-          # to be a meaningful asymptotic benchmark.  This smoke test verifies a
+          # to be a meaningful asymptotic benchmark. This smoke test verifies a
           # nontrivial exact prefix without asking for astronomical p_{i^i}.
           echo '=== X000014 compute 30 ==='
           time timeout 10m uv run lex-earliest-seqs compute X000014 30 \
