@@ -1,0 +1,65 @@
+name: Temporary primecountpy refactor validation
+
+on:
+  push:
+    branches:
+      - perf/self-power-prime-coordinate-20260903
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --locked
+      - name: Reject optional nth-prime backend remnants
+        run: |
+          if grep -R -n -E \
+            'LEX_EARLIEST_SEQS_DISABLE_PRIMECOUNT|LEX_EARLIEST_SEQS_DISABLE_PRIMESIEVE|_load_primecount_executable|_load_primesieve|_segmented_nth_prime|remember_nth_prime' \
+            src tests; then
+            echo 'optional/checkpoint nth-prime backend remnants remain' >&2
+            exit 1
+          fi
+      - name: Check formatting and lint
+        run: |
+          uv run black --check src tests
+          uv run ruff check src tests
+      - name: Direct primecountpy probes
+        run: |
+          uv run python - <<'PY'
+          from time import perf_counter
+          from lex_earliest_seqs.zoo.scalable_prime_lookup import scalable_nth_prime
+
+          for index in (823_543, 16_777_216, 387_420_489, 10_000_000_000):
+              start = perf_counter()
+              value = scalable_nth_prime(index)
+              print(f'p_{index}={value} elapsed={perf_counter()-start:.6f}', flush=True)
+          PY
+      - name: Scale X000014
+        run: |
+          /usr/bin/time -f 'X000014 elapsed=%e maxrss_kb=%M' timeout 8m \
+            uv run python - <<'PY'
+          from time import perf_counter
+          from lex_earliest_seqs import registry
+
+          generator = registry.resolve('X000014').generator_factory()
+          for count in (100, 1_000, 10_000):
+              start = perf_counter()
+              generator.extend_to(count)
+              max_index = max(
+                  generator._allowed_prime_index(i)
+                  for i in range(len(generator.retained_primes))
+              )
+              print(
+                  f'count={count} delta={perf_counter()-start:.6f} '
+                  f'primes={len(generator.retained_primes)} '
+                  f'max_prime_index={max_index} '
+                  f'multipliers={len(generator.multiplier_values)} '
+                  f'max_term={max(generator.terms)}',
+                  flush=True,
+              )
+          PY
+      - name: Full test suite
+        run: uv run pytest -q --durations=30
