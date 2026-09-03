@@ -96,7 +96,11 @@ def _primecount_nth_prime(executable: str, index: int) -> int:
     except (OSError, CalledProcessError) as exc:
         raise RuntimeError(f"primecount nth-prime lookup failed for n={index}") from exc
 
-    tokens = completed.stdout.replace(",", " ").split()
+    # primecount commonly formats large integers with thousands separators.
+    # Remove commas before tokenization rather than replacing them with spaces,
+    # which would turn ``15,485,863`` into the three unrelated integers
+    # ``15``, ``485``, and ``863``.
+    tokens = completed.stdout.replace(",", "").split()
     for token in reversed(tokens):
         if token.isdigit():
             value = int(token)
