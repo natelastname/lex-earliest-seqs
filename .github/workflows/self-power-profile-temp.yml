@@ -30,7 +30,7 @@ jobs:
           from lex_earliest_seqs import registry
 
           generator = registry.resolve('X000014').generator_factory()
-          for count in (100, 1_000, 10_000):
+          for count in (100, 1_000):
               start = perf_counter()
               generator.extend_to(count)
               print(
