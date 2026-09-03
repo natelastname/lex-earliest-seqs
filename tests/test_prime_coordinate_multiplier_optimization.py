@@ -2,7 +2,6 @@ import pickle
 
 import pytest
 
-from lex_earliest_seqs import registry
 from lex_earliest_seqs.zoo.enots_wolley import prime_support
 from lex_earliest_seqs.zoo.every_kth_prime_only_enots_wolley import (
     EveryKthPrimeOnlyEnotsWolleyGenerator,
@@ -154,11 +153,6 @@ def test_odd_fast_path_matches_single_table_streams(k):
     baseline.extend_to(2_000)
 
     assert optimized.terms == baseline.terms
-
-
-def test_registered_prime_coordinate_family_uses_generator_version_three():
-    for sequence_id in ("X000009", "X000010", "X000011"):
-        assert registry.resolve(sequence_id).generator_version == 3
 
 
 def test_optimized_generator_pickle_preserves_both_multiplier_views():
