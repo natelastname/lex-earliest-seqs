@@ -16,11 +16,55 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: astral-sh/setup-uv@v6
       - name: Sync environment
         run: uv sync --locked
       - name: Run full test suite
         run: uv run pytest
+      - name: Compare optimized prefixes with pre-optimization engine
+        run: |
+          set -euxo pipefail
+          BASE="$RUNNER_TEMP/sparse-prime-index-baseline"
+          rm -rf "$BASE"
+          git worktree add --detach "$BASE" 303dbcd42ab8e000d0db2ca706c43e96f6d4138e
+
+          for spec in square:5000 power_of_two:5000 self_power:20; do
+            family="${spec%%:*}"
+            count="${spec##*:}"
+            current="$RUNNER_TEMP/current-${family}.txt"
+            baseline="$RUNNER_TEMP/baseline-${family}.txt"
+
+            uv run python - "$family" "$count" > "$current" <<'PY'
+          import sys
+          from lex_earliest_seqs.zoo.sparse_prime_index_only_enots_wolley import (
+              SparsePrimeIndexOnlyEnotsWolleyGenerator,
+          )
+
+          family = sys.argv[1]
+          count = int(sys.argv[2])
+          generator = SparsePrimeIndexOnlyEnotsWolleyGenerator(family=family)
+          generator.extend_to(count)
+          print(*generator.terms, sep="\n")
+          PY
+
+            PYTHONPATH="$BASE/src" uv run python - "$family" "$count" \
+              > "$baseline" <<'PY'
+          import sys
+          from lex_earliest_seqs.zoo.sparse_prime_index_only_enots_wolley import (
+              SparsePrimeIndexOnlyEnotsWolleyGenerator,
+          )
+
+          family = sys.argv[1]
+          count = int(sys.argv[2])
+          generator = SparsePrimeIndexOnlyEnotsWolleyGenerator(family=family)
+          generator.extend_to(count)
+          print(*generator.terms, sep="\n")
+          PY
+
+            cmp "$baseline" "$current"
+          done
       - name: Compute finite prefixes with portable backend
         env:
           LEX_EARLIEST_SEQS_DISABLE_PRIMESIEVE: '1'
