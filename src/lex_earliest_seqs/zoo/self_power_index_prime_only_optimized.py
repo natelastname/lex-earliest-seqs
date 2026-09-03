@@ -20,7 +20,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 
-from .scalable_prime_lookup import remember_nth_prime
 from .sparse_prime_index_candidate_optimized import (
     SELF_POWER_INDEX_PRIME_ONLY_ENOTS_WOLLEY as BASE_DEFINITION,
     SelfPowerIndexPrimeOnlyEnotsWolleyGenerator as BaseSelfPowerIndexPrimeOnlyEnotsWolleyGenerator,
@@ -73,11 +72,9 @@ class SelfPowerIndexPrimeOnlyEnotsWolleyGenerator(
             return None
 
         while len(self.retained_primes) <= position:
-            next_position = len(self.retained_primes)
-            prime = SELF_POWER_RETAINED_PRIME_PREFIX[next_position]
-            index = self._allowed_prime_index(next_position)
-            remember_nth_prime(index, prime)
-            self.retained_primes.append(prime)
+            self.retained_primes.append(
+                SELF_POWER_RETAINED_PRIME_PREFIX[len(self.retained_primes)]
+            )
         return self.retained_primes[position]
 
 
