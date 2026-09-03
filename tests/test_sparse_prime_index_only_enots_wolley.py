@@ -16,18 +16,17 @@ from lex_earliest_seqs.zoo.sparse_prime_index_only_enots_wolley import (
 )
 
 
-@pytest.mark.parametrize(
-    ("family", "indices"),
-    [
-        ("square", [1, 4, 9, 16, 25, 36]),
-        ("power_of_two", [1, 2, 4, 8, 16, 32]),
-        ("self_power", [1, 4, 27, 256]),
-    ],
-)
-def test_prime_index_classifiers(family, indices):
-    expected = set(indices)
+def test_prime_index_classifiers():
     for index in range(1, 300):
-        assert is_retained_prime_index(index, family) == (index in expected)
+        assert is_retained_prime_index(index, "square") == (
+            int(index**0.5) ** 2 == index
+        )
+        assert is_retained_prime_index(index, "power_of_two") == (
+            index & (index - 1) == 0
+        )
+        assert is_retained_prime_index(index, "self_power") == (
+            index in {1, 4, 27, 256}
+        )
 
 
 def test_retained_prime_prefixes():
@@ -49,9 +48,9 @@ def test_policies_forbid_nonretained_prime_cofactors():
     power_two = SparsePrimeIndexOnlyPolicy("power_of_two")
     self_power = SparsePrimeIndexOnlyPolicy("self_power")
 
-    for value in (2, 4, 7, 8, 14, 23, 28, 49, 161, 529):
+    for value in (2, 4, 7, 8, 14, 23, 28, 46, 49, 161, 529):
         assert square.allows(value)
-    for value in (3, 5, 6, 10, 21, 35, 46):
+    for value in (3, 5, 6, 10, 21, 22, 35):
         assert not square.allows(value)
 
     for value in (2, 3, 4, 6, 7, 9, 14, 19, 21, 53):
@@ -99,8 +98,6 @@ def test_registered_sparse_prime_index_sequences(sequence_id, alias, family, cou
     [
         ("square", 20),
         ("power_of_two", 20),
-        # p_{i^i} reaches p_27=103 almost immediately; the direct integer
-        # scanner is intentionally only a tiny oracle for this family.
         ("self_power", 4),
     ],
 )
