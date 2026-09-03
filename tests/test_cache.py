@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 
 import pytest
 
-from lex_earliest_seqs.cache import CacheCompatibilityError, open_run
+from lex_earliest_seqs.cache import CacheCompatibilityError, load_generator, open_run
 from lex_earliest_seqs.core import SequenceDefinition
 from lex_earliest_seqs.object_space import PositiveIntegers
 
@@ -18,11 +18,27 @@ class HugeIntegerGenerator:
             self.next_exponent += 100
 
 
-def definition(*, generator_version: int = 1) -> SequenceDefinition[int]:
+@dataclass
+class ReshapedHugeIntegerGenerator:
+    terms: list[int] = field(default_factory=list)
+    next_exponent: int = 100
+    stride: int = 100
+
+    def extend_to(self, count: int) -> None:
+        while len(self.terms) < count:
+            self.terms.append(2**self.next_exponent)
+            self.next_exponent += self.stride
+
+
+def definition(
+    *,
+    generator_version: int = 1,
+    generator_factory=HugeIntegerGenerator,
+) -> SequenceDefinition[int]:
     return SequenceDefinition(
         id="huge-integers",
         name="Huge integers",
-        generator_factory=HugeIntegerGenerator,
+        generator_factory=generator_factory,
         generator_version=generator_version,
         object_space=PositiveIntegers(),
     )
@@ -40,11 +56,54 @@ def test_pickle_cache_preserves_generator_state_and_arbitrary_precision(tmp_path
     assert second.generator.next_exponent == 500
 
 
-def test_generator_version_mismatch_fails_loudly(tmp_path):
-    run = open_run(definition(generator_version=1), cache_dir=tmp_path)
-    run.ensure(1)
+def test_generator_version_mismatch_deletes_cache_and_restarts(tmp_path):
+    first = open_run(definition(generator_version=1), cache_dir=tmp_path)
+    first.ensure(1)
+    assert first.cache_path is not None
+    cache_path = first.cache_path
+    assert cache_path.exists()
+
+    second = open_run(definition(generator_version=2), cache_dir=tmp_path)
+
+    assert list(second.terms) == []
+    assert not cache_path.exists()
+
+
+def test_generator_schema_mismatch_deletes_cache_and_restarts(tmp_path):
+    first = open_run(definition(), cache_dir=tmp_path)
+    first.ensure(2)
+    assert first.cache_path is not None
+    cache_path = first.cache_path
+    assert cache_path.exists()
+
+    second = open_run(
+        definition(generator_factory=ReshapedHugeIntegerGenerator),
+        cache_dir=tmp_path,
+    )
+
+    assert type(second.generator) is ReshapedHugeIntegerGenerator
+    assert list(second.terms) == []
+    assert not cache_path.exists()
+
+    second.ensure(1)
+    third = open_run(
+        definition(generator_factory=ReshapedHugeIntegerGenerator),
+        cache_dir=tmp_path,
+    )
+    assert list(third.terms) == [2**100]
+
+
+def test_strict_load_deletes_incompatible_cache(tmp_path):
+    first = open_run(definition(generator_version=1), cache_dir=tmp_path)
+    first.ensure(1)
+    assert first.cache_path is not None
+    cache_path = first.cache_path
+    assert cache_path.exists()
+
     with pytest.raises(CacheCompatibilityError):
-        open_run(definition(generator_version=2), cache_dir=tmp_path)
+        load_generator(definition(generator_version=2), cache_path)
+
+    assert not cache_path.exists()
 
 
 def test_generated_prefix_is_written(tmp_path):
