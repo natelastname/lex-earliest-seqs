@@ -12,6 +12,10 @@ lazy heap merge.  It also carries prime-support bit masks for every multiplier
 and selected term.  Candidate coprimality, novelty, and used-value retirement
 therefore avoid factoring the often enormous sparse-coordinate terms.
 
+Candidate streams are filtered to their first locally valid head before global
+arbitration.  Old-prime-only multipliers never enter the candidate heap, and a
+current best value cuts off later shared-prime streams which cannot beat it.
+
 The three index families share the candidate engine, but retain separate prime
 frontiers.  In particular, a Rosser-style lower bound postpones exact ``p_n``
 evaluation until an unopened coordinate can really beat the current monoid
@@ -370,16 +374,30 @@ class SparsePrimeIndexOnlyEnotsWolleyGenerator:
             parents[index] = successor
             index = successor
 
-    def _next_stream_index(
+    def _next_valid_stream_index(
         self,
         stream_position: int,
         lower_index: int,
         forbidden_mask: int,
-    ) -> int:
+        previous_mask: int,
+        candidate_limit: int | None,
+    ) -> int | None:
+        """Return the first locally valid stream index able to beat the limit."""
+
         index = max(0, lower_index)
+        stream_prime = self.retained_primes[stream_position]
         while True:
             index = self._next_unused_multiplier_index(stream_position, index)
-            if self.multiplier_support_masks[index] & forbidden_mask == 0:
+            multiplier = self.multiplier_values[index]
+            candidate = stream_prime * multiplier
+            if candidate_limit is not None and candidate >= candidate_limit:
+                return None
+
+            multiplier_mask = self.multiplier_support_masks[index]
+            if (
+                multiplier_mask & forbidden_mask == 0
+                and multiplier_mask & ~previous_mask
+            ):
                 return index
             index += 1
 
@@ -387,9 +405,8 @@ class SparsePrimeIndexOnlyEnotsWolleyGenerator:
         """Return the least retained prime eligible to supply novelty."""
 
         blocked = previous_mask | two_back_mask
-        position = 0
-        while blocked & (1 << position):
-            position += 1
+        lowest_zero_bit = ~blocked & (blocked + 1)
+        position = lowest_zero_bit.bit_length() - 1
         prime = self._prime_at_position(position)
         assert prime is not None
         return prime
@@ -422,64 +439,40 @@ class SparsePrimeIndexOnlyEnotsWolleyGenerator:
 
         # Every admissible candidate must introduce a retained prime absent from
         # both predecessor and two-back support.  No multiplier below the least
-        # such prime can work, so all candidate streams can start at one shared
-        # lower index instead of rescanning old-prime powers from 1.
+        # such prime can work, so all candidate streams start at one shared lower
+        # index instead of rescanning old-prime powers from 1.
         novel_prime = self._smallest_novel_prime(previous_mask, two_back_mask)
         lower_index = self._multiplier_index_at_least(novel_prime)
 
-        # Each heap item is
-        # (candidate, stream_position, multiplier_index, forbidden_mask).
-        heap: list[tuple[int, int, int, int]] = []
+        best_value: int | None = None
+        best_mask = 0
         earlier_shared_mask = 0
+
         for stream_position in _iter_mask_positions(shared_mask):
             forbidden_mask = two_back_mask | earlier_shared_mask
-            index = self._next_stream_index(
+            index = self._next_valid_stream_index(
                 stream_position,
                 lower_index,
                 forbidden_mask,
+                previous_mask,
+                best_value,
             )
-            multiplier = self.multiplier_values[index]
-            stream_prime = self.retained_primes[stream_position]
-            heappush(
-                heap,
-                (
-                    stream_prime * multiplier,
-                    stream_position,
-                    index,
-                    forbidden_mask,
-                ),
-            )
+            if index is not None:
+                stream_prime = self.retained_primes[stream_position]
+                multiplier = self.multiplier_values[index]
+                candidate = stream_prime * multiplier
+                candidate_mask = (
+                    self.multiplier_support_masks[index]
+                    | (1 << stream_position)
+                )
+                if best_value is None or candidate < best_value:
+                    best_value = candidate
+                    best_mask = candidate_mask
             earlier_shared_mask |= 1 << stream_position
 
-        while heap:
-            candidate, stream_position, index, forbidden_mask = heappop(heap)
-            multiplier_mask = self.multiplier_support_masks[index]
-            candidate_mask = multiplier_mask | (1 << stream_position)
-
-            # Stream construction guarantees allowed support, sharing with the
-            # predecessor, two-back coprimality, unique stream ownership, and an
-            # unused product.  Only predecessor-external novelty remains.
-            if candidate_mask & ~previous_mask:
-                return candidate, candidate_mask
-
-            index = self._next_stream_index(
-                stream_position,
-                index + 1,
-                forbidden_mask,
-            )
-            multiplier = self.multiplier_values[index]
-            stream_prime = self.retained_primes[stream_position]
-            heappush(
-                heap,
-                (
-                    stream_prime * multiplier,
-                    stream_position,
-                    index,
-                    forbidden_mask,
-                ),
-            )
-
-        raise RuntimeError("sparse prime-coordinate candidate heap unexpectedly exhausted")
+        if best_value is None:
+            raise RuntimeError("sparse prime-coordinate candidate streams exhausted")
+        return best_value, best_mask
 
     def extend_to(self, count: int) -> None:
         if count < 0:
