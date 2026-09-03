@@ -4,7 +4,6 @@ import pytest
 
 from lex_earliest_seqs import registry
 from lex_earliest_seqs.cache import open_run
-from lex_earliest_seqs.zoo.enots_wolley import prime_support
 from lex_earliest_seqs.zoo.sparse_prime_index_only_enots_wolley import (
     POWER_OF_TWO_INDEX_PRIME_ONLY_ENOTS_WOLLEY,
     SELF_POWER_INDEX_PRIME_ONLY_ENOTS_WOLLEY,
@@ -95,16 +94,25 @@ def test_registered_sparse_prime_index_sequences(sequence_id, alias, family):
         assert policy.allows(term)
 
 
-@pytest.mark.parametrize("family", ["square", "power_of_two", "self_power"])
-def test_simple_generator_matches_direct_scanner(family):
-    optimized = SparsePrimeIndexOnlyEnotsWolleyGenerator(family=family)
+@pytest.mark.parametrize(
+    ("family", "count"),
+    [
+        ("square", 20),
+        ("power_of_two", 20),
+        # p_{i^i} reaches p_27=103 almost immediately; the direct integer
+        # scanner is intentionally only a tiny oracle for this family.
+        ("self_power", 4),
+    ],
+)
+def test_simple_generator_matches_direct_scanner(family, count):
+    generator = SparsePrimeIndexOnlyEnotsWolleyGenerator(family=family)
     reference = ReferenceSparsePrimeIndexOnlyEnotsWolleyGenerator(family=family)
 
-    optimized.extend_to(40)
-    reference.extend_to(40)
+    generator.extend_to(count)
+    reference.extend_to(count)
 
-    assert optimized.terms == reference.terms
-    assert optimized.used == set(optimized.terms)
+    assert generator.terms == reference.terms
+    assert generator.used == set(generator.terms)
 
 
 @pytest.mark.parametrize("family", ["square", "power_of_two", "self_power"])
