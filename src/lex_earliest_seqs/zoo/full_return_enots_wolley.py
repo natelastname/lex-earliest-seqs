@@ -207,9 +207,6 @@ class FullReturnEnotsWolleyGenerator(EnotsWolleyGenerator):
             if introduces_new_prime and return_allowed:
                 return candidate
 
-            # Used products are permanent and can be deleted by the inherited
-            # successor DSU. New-prime and full-return failures are local to the
-            # present state and must remain available in future states.
             next_lower_bound = multiplier if candidate in self.used else multiplier + 1
             multiplier = self._next_stream_multiplier(
                 stream_prime,
