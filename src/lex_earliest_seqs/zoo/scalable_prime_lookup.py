@@ -11,9 +11,10 @@ This module provides a narrow exact ``nth_prime`` service:
 2. otherwise advance a bounded-memory segmented odd sieve.
 
 Both backends exploit the increasing query order of sparse prime-coordinate
-families.  The C++ backend asks for the index gap after the nearest known lower
-prime instead of restarting at zero.  The fallback keeps a process-global
-forward cursor.  Out-of-order fallback queries remain correct; they use a
+families.  Dense small-index lookups seed the scalable cursors.  The C++ backend
+then asks for the index gap after the nearest known lower prime instead of
+restarting at zero, while the fallback advances from the largest exact dense or
+segmented checkpoint.  Out-of-order fallback queries remain correct; they use a
 temporary fresh cursor rather than corrupting the forward state.
 """
 
@@ -84,9 +85,9 @@ def _nth_prime_upper_bound(index: int) -> int:
     if index <= len(small):
         return small[index - 1]
     n = float(index)
-    # Rosser's p_n < n(log n + log log n) bound holds for n >= 6.  The small
-    # additive margin protects the integer conversion without affecting scale.
-    return int(n * (log(n) + log(log(n)))) + 16
+    # Rosser's p_n < n(log n + log log n) bound holds for n >= 6.  A small
+    # relative margin protects floating conversion for large machine indices.
+    return int(n * (log(n) + log(log(n))) * 1.000001) + 64
 
 
 def _primes_through(limit: int) -> list[int]:
@@ -225,6 +226,34 @@ def _primesieve_nth_prime(backend: ModuleType, index: int) -> int:
         _backend_indices.insert(insertion, index)
         _backend_primes.insert(insertion, value)
         return value
+
+
+def remember_nth_prime(index: int, prime: int) -> None:
+    """Seed both scalable backends with an externally established exact p_n."""
+
+    global _segment_count, _segment_scanned_through
+
+    _validate_index(index)
+    if type(prime) is not int or prime < 2:
+        raise ValueError("prime checkpoint must be an integer at least 2")
+
+    with _backend_lock:
+        insertion = bisect_left(_backend_indices, index)
+        if insertion < len(_backend_indices) and _backend_indices[insertion] == index:
+            if _backend_primes[insertion] != prime:
+                raise ValueError("conflicting exact nth-prime checkpoint")
+        else:
+            _backend_indices.insert(insertion, index)
+            _backend_primes.insert(insertion, prime)
+
+    with _segment_lock:
+        known = _segment_requested_results.get(index)
+        if known is not None and known != prime:
+            raise ValueError("conflicting segmented nth-prime checkpoint")
+        _segment_requested_results[index] = prime
+        if index > _segment_count:
+            _segment_count = index
+            _segment_scanned_through = prime
 
 
 @cache
