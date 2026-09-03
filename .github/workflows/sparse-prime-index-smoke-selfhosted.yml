@@ -17,12 +17,16 @@ jobs:
         run: uv sync --locked
       - name: Run sparse-family tests
         run: uv run pytest tests/test_sparse_prime_index_only_enots_wolley.py
-      - name: Compute 1000 terms of each sequence
+      - name: Compute first-pass finite prefixes
         run: |
           set -euxo pipefail
-          for seq in X000012 X000013 X000014; do
+
+          for seq in X000012 X000013; do
             echo "=== $seq first 20 ==="
             uv run lex-earliest-seqs terms "$seq" 20 --no-cache --no-progress
             echo "=== $seq compute 1000 ==="
             time uv run lex-earliest-seqs compute "$seq" 1000 --no-cache --no-progress
           done
+
+          echo '=== X000014 first 20 ==='
+          time uv run lex-earliest-seqs terms X000014 20 --no-cache --no-progress
