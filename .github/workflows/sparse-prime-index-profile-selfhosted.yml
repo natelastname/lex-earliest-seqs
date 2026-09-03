@@ -1,0 +1,65 @@
+name: Sparse prime-index generator profile self-hosted
+
+on:
+  push:
+    branches:
+      - feature/sparse-prime-coordinate-ew-20260903
+    paths:
+      - '.github/workflows/sparse-prime-index-profile-selfhosted.yml'
+  workflow_dispatch:
+
+jobs:
+  profile:
+    runs-on: self-hosted
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Sync environment
+        run: uv sync --locked
+      - name: Baseline profiles
+        run: |
+          set -euo pipefail
+          uv run python - <<'PY'
+          import cProfile
+          import io
+          import pstats
+          import time
+
+          from lex_earliest_seqs.zoo.sparse_prime_index_only_enots_wolley import (
+              SparsePrimeIndexOnlyEnotsWolleyGenerator,
+          )
+
+          cases = (
+              ('square', 10_000),
+              ('power_of_two', 10_000),
+              ('self_power', 100),
+          )
+          for family, count in cases:
+              generator = SparsePrimeIndexOnlyEnotsWolleyGenerator(family=family)
+              profiler = cProfile.Profile()
+              start = time.perf_counter()
+              profiler.enable()
+              generator.extend_to(count)
+              profiler.disable()
+              elapsed = time.perf_counter() - start
+              print(
+                  f'PROFILE family={family} count={count} seconds={elapsed:.6f} '
+                  f'multipliers={len(generator.multiplier_values)} '
+                  f'opened_primes={generator.next_allowed_position} '
+                  f'max_term={max(generator.terms)}',
+                  flush=True,
+              )
+              stream = io.StringIO()
+              pstats.Stats(profiler, stream=stream).strip_dirs().sort_stats('cumulative').print_stats(18)
+              print(stream.getvalue(), flush=True)
+          PY
+      - name: Probe primesieve Python package
+        continue-on-error: true
+        run: |
+          set -euxo pipefail
+          uv run --with 'primesieve>=2.3.4,<3' python - <<'PY'
+          import primesieve
+          for n in (823_543, 16_777_216):
+              print(n, primesieve.nth_prime(n), flush=True)
+          PY
