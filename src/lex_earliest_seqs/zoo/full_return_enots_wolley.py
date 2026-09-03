@@ -16,7 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from functools import partial
 from heapq import heappop, heappush
-from math import isqrt
+from math import gcd, isqrt, prod
 
 from ..core import SequenceDefinition
 from ..object_space import PositiveIntegers
@@ -59,6 +59,28 @@ def full_return_candidate_allowed(value: int, previous: int, p: int, q: int) -> 
     return (value % p == 0) == (value % q == 0)
 
 
+def _multiplier_introduces_new_prime(
+    multiplier: int,
+    previous_primes: frozenset[int],
+) -> bool:
+    """Test EW new-prime introduction without factoring the candidate.
+
+    A candidate stream has the form ``r * multiplier`` where ``r`` is already
+    in the predecessor support.  Therefore the candidate introduces a new prime
+    exactly when the multiplier has a prime factor outside that support.  Strip
+    all predecessor primes from the multiplier; a nontrivial remainder is
+    equivalent to the required new prime.
+    """
+
+    remainder = multiplier
+    for prime in previous_primes:
+        while remainder % prime == 0:
+            remainder //= prime
+        if remainder == 1:
+            return False
+    return remainder > 1
+
+
 @dataclass
 class ReferenceFullReturnEnotsWolleyGenerator:
     p: int = 2
@@ -98,7 +120,28 @@ class ReferenceFullReturnEnotsWolleyGenerator:
 
 @dataclass
 class FullReturnEnotsWolleyGenerator(EnotsWolleyGenerator):
-    """Ordinary optimized EW streams plus the state-local full-return filter."""
+    """EW streams with the full-return rule compiled into active streams.
+
+    Two optimizations matter for this family.
+
+    First, candidate new-prime testing never uses ordinary EW's dense radical
+    table.  For ``candidate = r*m`` the stream prime ``r`` is already in the
+    predecessor support, so stripping predecessor primes from ``m`` is an exact
+    new-prime test.  This avoids maintaining a dense table out to potentially
+    very large candidate values.
+
+    Second, when the predecessor is target-free, an ordinary stream is split
+    into two disjoint exact substreams: target-free candidates and full ``p*q``
+    candidates.  One-sided target candidates are therefore never put on the
+    candidate heap.  If the local lag-two/partition exclusions already contain
+    either target prime, a full candidate is impossible and only the target-free
+    substream is generated.
+
+    Existing generator caches remain continuation-compatible: inherited
+    successor maps still encode only permanently used products.  Full substreams
+    use their composite fixed factor ``r*p*q`` as an additional successor-map
+    key, which cannot collide with the prime keys used by ordinary streams.
+    """
 
     p: int = 2
     q: int = 3
@@ -109,72 +152,132 @@ class FullReturnEnotsWolleyGenerator(EnotsWolleyGenerator):
     def _next_candidate(self) -> int:
         previous = self.terms[-1]
         two_back = self.terms[-2]
-        self._ensure_value(max(previous, two_back))
-        assert self.radicals is not None
 
-        previous_radical = self.radicals[previous]
-        two_back_radical = self.radicals[two_back]
-        shared_primes = tuple(sorted(prime_support(previous) - prime_support(two_back)))
+        previous_primes = prime_support(previous)
+        two_back_primes = prime_support(two_back)
+        two_back_radical = prod(two_back_primes)
+        shared_primes = tuple(sorted(previous_primes - two_back_primes))
         if not shared_primes:
             raise RuntimeError(
                 "full-return EW state has no predecessor prime disjoint from the two-back term"
             )
 
         force_full_return = full_return_restriction_active(previous, self.p, self.q)
+        target_product = self.p * self.q
 
-        heap: list[tuple[int, int, int, int]] = []
+        # Heap item:
+        #   (candidate, fixed_factor, multiplier, forbidden_radical,
+        #    automatic_new_prime)
+        #
+        # Ordinary/target-free streams have fixed_factor equal to the shared
+        # stream prime.  A full-return substream has fixed_factor=r*p*q and its
+        # multiplier is the remaining cofactor.  Since p and q are absent from
+        # a target-free predecessor, every such full candidate automatically
+        # introduces new primes.
+        heap: list[tuple[int, int, int, int, bool]] = []
+
+        def push_stream(
+            fixed_factor: int,
+            lower_bound: int,
+            forbidden_radical: int,
+            automatic_new_prime: bool,
+        ) -> None:
+            multiplier = self._next_stream_multiplier(
+                fixed_factor,
+                lower_bound,
+                forbidden_radical,
+            )
+            heappush(
+                heap,
+                (
+                    fixed_factor * multiplier,
+                    fixed_factor,
+                    multiplier,
+                    forbidden_radical,
+                    automatic_new_prime,
+                ),
+            )
+
         earlier_shared_product = 1
         for stream_prime in shared_primes:
             forbidden_radical = two_back_radical * earlier_shared_product
-            lower_multiplier = max(
-                1,
-                (self.smallest_unused + stream_prime - 1) // stream_prime,
-            )
-            multiplier = self._next_stream_multiplier(
-                stream_prime,
-                lower_multiplier,
-                forbidden_radical,
-            )
-            heappush(
-                heap,
-                (
-                    stream_prime * multiplier,
+
+            if not force_full_return:
+                lower_multiplier = max(
+                    1,
+                    (self.smallest_unused + stream_prime - 1) // stream_prime,
+                )
+                push_stream(
                     stream_prime,
-                    multiplier,
+                    lower_multiplier,
                     forbidden_radical,
-                ),
-            )
+                    False,
+                )
+            else:
+                # Target-free branch.  Folding p*q into the coprimality
+                # exclusion enumerates exactly the candidates containing neither
+                # target prime.  Duplicated factors are harmless to gcd().
+                free_forbidden = forbidden_radical * target_product
+                lower_multiplier = max(
+                    1,
+                    (self.smallest_unused + stream_prime - 1) // stream_prime,
+                )
+                push_stream(
+                    stream_prime,
+                    lower_multiplier,
+                    free_forbidden,
+                    False,
+                )
+
+                # Full-return branch.  It exists only when lag-two and the
+                # disjoint stream partition do not already forbid p or q.
+                if gcd(forbidden_radical, target_product) == 1:
+                    full_factor = stream_prime * target_product
+                    lower_full_multiplier = max(
+                        1,
+                        (self.smallest_unused + full_factor - 1) // full_factor,
+                    )
+                    push_stream(
+                        full_factor,
+                        lower_full_multiplier,
+                        forbidden_radical,
+                        True,
+                    )
+
             earlier_shared_product *= stream_prime
 
         while heap:
-            candidate, stream_prime, multiplier, forbidden_radical = heappop(heap)
-            self._ensure_value(candidate)
-            assert self.radicals is not None
+            (
+                candidate,
+                fixed_factor,
+                multiplier,
+                forbidden_radical,
+                automatic_new_prime,
+            ) = heappop(heap)
 
-            introduces_new_prime = (
-                candidate not in self.used
-                and previous_radical % self.radicals[candidate] != 0
+            introduces_new_prime = automatic_new_prime or _multiplier_introduces_new_prime(
+                multiplier,
+                previous_primes,
             )
-            return_allowed = True
-            if force_full_return:
-                return_allowed = (candidate % self.p == 0) == (candidate % self.q == 0)
-
-            if introduces_new_prime and return_allowed:
+            if introduces_new_prime:
                 return candidate
 
-            next_lower_bound = multiplier if candidate in self.used else multiplier + 1
+            # _next_stream_multiplier already skips globally used products.  A
+            # new-prime failure is state-local, so advance only this heap stream
+            # and do not install a permanent deletion for the rejected value.
             multiplier = self._next_stream_multiplier(
-                stream_prime,
-                next_lower_bound,
+                fixed_factor,
+                multiplier + 1,
                 forbidden_radical,
             )
             heappush(
                 heap,
                 (
-                    stream_prime * multiplier,
-                    stream_prime,
+                    fixed_factor * multiplier,
+                    fixed_factor,
                     multiplier,
                     forbidden_radical,
+                    automatic_new_prime,
                 ),
             )
 
