@@ -27,7 +27,7 @@ NonNegativeInt = Annotated[
     Parameter(validator=validators.Number(gte=0)),
 ]
 ColumnChoice = Literal["used", "through-largest"]
-OutputFormat = Literal["text", "markdown", "json", "csv", "tsv"]
+OutputFormat = Literal["text", "markdown", "json", "csv", "tsv", "b-file"]
 TermsOutputFormat = Literal["csv", "parquet"]
 TermsOutputPath = Annotated[
     Path | None,
@@ -342,10 +342,11 @@ def table(
         Zero-based sequence position at which to start.
     projection
         Named incidence projection. Omit when the sequence has exactly one.
+        This option is not used for ``b-file`` output.
     columns
         Feature-column policy: ``used`` or ``through-largest``.
     format
-        Output format: text, markdown, json, csv, or tsv.
+        Output format: text, markdown, json, csv, tsv, or OEIS b-file.
     width
         Maximum text-table width before panel splitting.
     cache_dir
@@ -369,6 +370,12 @@ def table(
     stop = start_position + count
     _ensure(run, stop, progress=progress)
     records = run.records(start_position, stop)
+
+    if format == "b-file":
+        output = "".join(f"{record.subscript} {record.value}\n" for record in records)
+        print(output, end="")
+        return
+
     selected_projection = _projection(run.definition, projection)
     incidence_table = build_incidence_table(
         records,
