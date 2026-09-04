@@ -179,3 +179,27 @@ def test_terms_output_format_is_inferred_from_parquet_suffix(tmp_path):
         "subscript": [1, 2],
         "value": [1, 2],
     }
+
+
+def test_table_b_file_output_uses_oeis_index_value_lines(capsys):
+    _run_cli(
+        [
+            "table",
+            "ew",
+            "3",
+            "--start-position",
+            "2",
+            "--format",
+            "b-file",
+            "--no-cache",
+            "--no-progress",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert captured.out.splitlines() == [
+        "3 6",
+        "4 15",
+        "5 35",
+    ]
+    assert captured.err == ""
