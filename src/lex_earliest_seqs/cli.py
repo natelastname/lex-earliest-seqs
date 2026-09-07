@@ -74,9 +74,7 @@ class _ProgressPrinter:
         self._last_value = value
         percent = 100.0 if total == 0 else min(100.0, 100.0 * current / total)
         if self.unit == "bytes":
-            detail = (
-                f"{self._format_bytes(current)}/{self._format_bytes(total)}"
-            )
+            detail = f"{self._format_bytes(current)}/{self._format_bytes(total)}"
         else:
             detail = f"{current:,}/{total:,} terms"
         print(
@@ -261,6 +259,7 @@ def terms(
     count: NonNegativeInt,
     *,
     start_position: NonNegativeInt = 0,
+    comma_separated: bool = False,
     output: TermsOutputPath = None,
     format: TermsOutputFormat | None = None,
     cache_dir: Path | None = None,
@@ -278,6 +277,8 @@ def terms(
         Number of terms to print or export.
     start_position
         Zero-based sequence position at which to start.
+    comma_separated
+        Print values only as a single comma-separated line.
     output
         Write terms to this file instead of stdout. ``-o`` is an alias.
     format
@@ -294,6 +295,9 @@ def terms(
         suppress it.
     """
 
+    if comma_separated and output is not None:
+        raise SystemExit("--comma-separated cannot be combined with --output/-o")
+
     selected_format = _terms_output_format(output, format)
     run = _open(
         sequence,
@@ -306,8 +310,12 @@ def terms(
     _ensure(run, stop, progress=progress)
 
     if output is None:
-        for record in run.records(start_position, stop):
-            print(f"{record.subscript}\t{record.value}")
+        records = run.records(start_position, stop)
+        if comma_separated:
+            print(",".join(str(record.value) for record in records))
+        else:
+            for record in records:
+                print(f"{record.subscript}\t{record.value}")
     elif selected_format == "csv":
         write_terms_csv(run, start_position, stop, output)
     else:
