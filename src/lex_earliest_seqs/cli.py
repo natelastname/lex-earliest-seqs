@@ -28,7 +28,7 @@ NonNegativeInt = Annotated[
 ]
 ColumnChoice = Literal["used", "through-largest"]
 OutputFormat = Literal["text", "markdown", "json", "csv", "tsv", "b-file"]
-TermsOutputFormat = Literal["csv", "parquet"]
+TermsOutputFormat = Literal["comma-separated", "csv", "parquet"]
 TermsOutputPath = Annotated[
     Path | None,
     Parameter(name=("--output", "-o")),
@@ -74,7 +74,9 @@ class _ProgressPrinter:
         self._last_value = value
         percent = 100.0 if total == 0 else min(100.0, 100.0 * current / total)
         if self.unit == "bytes":
-            detail = f"{self._format_bytes(current)}/{self._format_bytes(total)}"
+            detail = (
+                f"{self._format_bytes(current)}/{self._format_bytes(total)}"
+            )
         else:
             detail = f"{current:,}/{total:,} terms"
         print(
@@ -144,9 +146,11 @@ def _terms_output_format(
     requested: TermsOutputFormat | None,
 ) -> TermsOutputFormat | None:
     if output is None:
-        if requested is not None:
-            raise SystemExit("--format requires --output/-o for the terms command")
-        return None
+        if requested in {None, "comma-separated"}:
+            return requested
+        raise SystemExit(
+            "--format csv and --format parquet require --output/-o for the terms command"
+        )
     if requested is not None:
         return requested
 
@@ -157,7 +161,7 @@ def _terms_output_format(
         return "parquet"
     raise SystemExit(
         "cannot infer term output format from the filename; "
-        "use --format csv or --format parquet"
+        "use --format comma-separated, --format csv, or --format parquet"
     )
 
 
@@ -259,7 +263,6 @@ def terms(
     count: NonNegativeInt,
     *,
     start_position: NonNegativeInt = 0,
-    comma_separated: bool = False,
     output: TermsOutputPath = None,
     format: TermsOutputFormat | None = None,
     cache_dir: Path | None = None,
@@ -277,13 +280,13 @@ def terms(
         Number of terms to print or export.
     start_position
         Zero-based sequence position at which to start.
-    comma_separated
-        Print values only as a single comma-separated line.
     output
         Write terms to this file instead of stdout. ``-o`` is an alias.
     format
-        File format: ``csv`` or ``parquet``. When omitted, infer it from the
-        output filename extension.
+        Output format: ``comma-separated``, ``csv``, or ``parquet``. The
+        ``comma-separated`` format prints values only on one line and may be
+        written to stdout. CSV and Parquet require an output file. When format
+        is omitted for a file export, infer it from the output filename extension.
     cache_dir
         Override the pickle cache directory.
     refresh
@@ -294,9 +297,6 @@ def terms(
         Print cache-loading and computation progress. Use ``--no-progress`` to
         suppress it.
     """
-
-    if comma_separated and output is not None:
-        raise SystemExit("--comma-separated cannot be combined with --output/-o")
 
     selected_format = _terms_output_format(output, format)
     run = _open(
@@ -309,13 +309,16 @@ def terms(
     stop = start_position + count
     _ensure(run, stop, progress=progress)
 
-    if output is None:
+    if selected_format == "comma-separated":
         records = run.records(start_position, stop)
-        if comma_separated:
-            print(",".join(str(record.value) for record in records))
+        text = ",".join(str(record.value) for record in records) + "\n"
+        if output is None:
+            print(text, end="")
         else:
-            for record in records:
-                print(f"{record.subscript}\t{record.value}")
+            output.write_text(text, encoding="utf-8")
+    elif output is None:
+        for record in run.records(start_position, stop):
+            print(f"{record.subscript}\t{record.value}")
     elif selected_format == "csv":
         write_terms_csv(run, start_position, stop, output)
     else:
