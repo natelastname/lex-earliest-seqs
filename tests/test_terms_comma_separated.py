@@ -11,7 +11,7 @@ def _run_cli(args: list[str]) -> None:
     assert exc_info.value.code == 0
 
 
-def test_terms_comma_separated_outputs_values_on_one_line(capsys):
+def test_terms_comma_separated_format_outputs_values_on_one_line(capsys):
     _run_cli(
         [
             "terms",
@@ -19,7 +19,8 @@ def test_terms_comma_separated_outputs_values_on_one_line(capsys):
             "3",
             "--start-position",
             "2",
-            "--comma-separated",
+            "--format",
+            "comma-separated",
             "--no-cache",
             "--no-progress",
         ]
@@ -28,3 +29,25 @@ def test_terms_comma_separated_outputs_values_on_one_line(capsys):
     captured = capsys.readouterr()
     assert captured.out == "6,15,35\n"
     assert captured.err == ""
+
+
+def test_terms_comma_separated_format_can_write_to_output_file(tmp_path, capsys):
+    output = tmp_path / "terms.txt"
+    _run_cli(
+        [
+            "terms",
+            "ew",
+            "5",
+            "--format",
+            "comma-separated",
+            "--output",
+            str(output),
+            "--no-cache",
+            "--no-progress",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == ""
+    assert output.read_text(encoding="utf-8") == "1,2,6,15,35\n"
