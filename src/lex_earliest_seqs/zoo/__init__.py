@@ -90,6 +90,12 @@ from .squarefree_semiprime_enots_wolley import (
     X000000_POLICY,
     SquarefreeSemiprimeEnotsWolleyGenerator,
 )
+from .xorpop import (
+    XORPOP,
+    XorpopGenerator,
+    hamming_weight_class,
+    next_same_hamming_weight,
+)
 
 # The every-kth-prime-only stride generators remain available as generic research
 # utilities, but their accidental X000009--X000011 registrations are intentionally
@@ -176,9 +182,12 @@ __all__ = [
     "X000003_POLICY",
     "X000004_POLICY",
     "X000005_POLICY",
+    "XORPOP",
+    "XorpopGenerator",
     "big_omega",
     "full_return_candidate_allowed",
     "full_return_restriction_active",
+    "hamming_weight_class",
     "is_every_kth_prime",
     "is_retained_prime",
     "is_retained_prime_index",
@@ -187,6 +196,7 @@ __all__ = [
     "make_factor_restricted_enots_wolley_definition",
     "make_full_return_enots_wolley_definition",
     "make_sparse_prime_index_only_enots_wolley_definition",
+    "next_same_hamming_weight",
     "nth_prime",
     "omega",
     "prime_index",
@@ -198,6 +208,7 @@ __all__ = [
 def register_builtins(registry: SequenceRegistry) -> None:
     registry.register(ENOTS_WOLLEY)
     registry.register(BINARY_ENOTS_WOLLEY)
+    registry.register(XORPOP)
     registry.register(FORCED_SQUAREFREE_ENOTS_WOLLEY)
     for definition in PRIMARY_ENOTS_WOLLEY_DEFINITIONS:
         registry.register(definition)
