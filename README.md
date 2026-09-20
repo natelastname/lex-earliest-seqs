@@ -85,6 +85,7 @@ a projection or renderer cannot change sequence generation.
 | --- | --- | --- | --- |
 | `A336957` | Enots--Wolley | `ew`, `enots-wolley` | `prime-exponents` |
 | `A338833` | Binary Enots--Wolley | `bew`, `binary-ew` | `binary-digits` |
+| `A357578` | XOR-popcount | `xorpop`, `xor-pop` | `binary-digits` |
 | `A399457` | Forced-squarefree Enots--Wolley | `squarefree-ew`, `forced-squarefree-ew` | `prime-exponents` |
 
 The built-ins use sequence-specific candidate enumeration rather than relying
@@ -95,6 +96,8 @@ on a generic brute-force scanner:
   successor maps so recurring streams jump over products already used earlier;
 - **A338833** uses an exact bit successor to jump directly between locally
   admissible binary candidates;
+- **A357578** keeps the least unused member of each Hamming-weight class and
+  advances that class directly in natural binary-combination order;
 - **A399457** merges squarefree candidate streams and persists per-stream
   cofactor frontiers so late computation skips historically exhausted prefixes.
 
