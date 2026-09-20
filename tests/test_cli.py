@@ -20,6 +20,7 @@ def test_list_command(capsys):
     output = capsys.readouterr().out
     assert "A336957" in output
     assert "A338833" in output
+    assert "A357578" in output
 
 
 def test_info_reports_zero_cached_terms_when_cache_is_absent(tmp_path, capsys):
